@@ -26,6 +26,7 @@ async function handle(request, response) {
     const match = /^\/api\/projects\/([^/]+)(?:\/(synapses|winner|publish|export))?$/.exec(url.pathname);
     if (match) return await handleProjectRoute(request, response, method, decodeProjectId(match[1]), match[2]);
     if (url.pathname.startsWith('/api/')) return sendJson(response, 404, { error: 'API route not found.' });
+    if (/^\/proof\/[^/]+\/[^/]+$/.test(url.pathname)) return serveStatic('/proof.html', response);
     return serveStatic(url.pathname, response);
   } catch (error) {
     if (error instanceof StoreError) return sendJson(response, error.statusCode, { error: error.message });

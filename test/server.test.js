@@ -53,6 +53,17 @@ test('creates, forks, selects, publishes, and exports a Project Genome', async (
   assert.equal(exported.body.project.id, projectId);
 });
 
+test('serves a public proof page for a published synapse', async () => {
+  const created = await request('POST', '/api/projects', { title: 'Proof link', description: 'A shareable result.', template: 'portfolio' });
+  const project = created.body.project;
+  const published = await request('POST', `/api/projects/${project.id}/publish`, { synapseId: project.winnerId });
+  const proofPath = published.body.project.publications[0].proofUrl;
+
+  const proof = await request('GET', proofPath);
+  assert.equal(proof.status, 200);
+  assert.match(proof.text, /SynapseNest Proof/i);
+});
+
 test('returns 400 for malformed percent-encoded project IDs', async () => {
   const response = await request('GET', '/api/projects/%E0%A4%A');
   assert.equal(response.status, 400);
@@ -70,7 +81,10 @@ function request(method, pathname, body) {
       let text = '';
       response.setEncoding('utf8');
       response.on('data', (chunk) => { text += chunk; });
-      response.on('end', () => resolve({ status: response.statusCode, body: text ? JSON.parse(text) : undefined }));
+      response.on('end', () => {
+        const contentType = response.headers['content-type'] || '';
+        resolve({ status: response.statusCode, text, body: contentType.includes('application/json') && text ? JSON.parse(text) : undefined });
+      });
     });
     request.on('error', reject);
     if (payload) request.write(payload);
