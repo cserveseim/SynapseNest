@@ -1,0 +1,21 @@
+services:
+  static-preview:
+    # This profile is a reviewed runtime reference. The adapter generates the
+    # per-workspace bind mount and never publishes the container port.
+    profiles: [manual-runtime]
+    image: busybox@sha256:3c6ae8008e2c2eedd141725c30b20d9c36b026eb796688f88205845ef17aa213
+    command: [httpd, -f, -p, '8080', -h, /workspace]
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 0.50
+    mem_limit: 256m
+    pids_limit: 64
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    volumes:
+      - runtime-workspace:/workspace
+
+volumes:
+  runtime-workspace: {}
