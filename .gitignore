@@ -1,0 +1,12 @@
+# Node.js dependencies
+node_modules/
+
+# Local Project Genome persistence
+data/*.json
+
+# Runtime output
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
