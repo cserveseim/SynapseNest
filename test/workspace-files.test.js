@@ -65,6 +65,85 @@ test('rejects writes through an existing symlink', () => {
   } finally { subject.cleanup(); }
 });
 
+test('rejects intermediate directory symlinks without touching the external target', () => {
+  const subject = fixture();
+  try {
+    const outsideDirectory = path.join(subject.directory, 'outside');
+    fs.mkdirSync(outsideDirectory);
+    fs.writeFileSync(path.join(outsideDirectory, 'app.js'), 'private');
+    fs.symlinkSync(outsideDirectory, path.join(subject.directory, subject.workspaceId, 'src'));
+
+    assert.throws(() => subject.files.readFile(subject.workspaceId, 'src/app.js'), WorkspaceFileError);
+    assert.throws(() => subject.files.writeFile(subject.workspaceId, 'src/app.js', 'overwrite'), WorkspaceFileError);
+    assert.equal(fs.readFileSync(path.join(outsideDirectory, 'app.js'), 'utf8'), 'private');
+  } finally { subject.cleanup(); }
+});
+
+test('rejects a symlinked workspace root without reading the target', () => {
+  const subject = fixture();
+  try {
+    const workspacePath = path.join(subject.directory, subject.workspaceId);
+    const outsideDirectory = path.join(subject.directory, 'outside');
+    fs.mkdirSync(outsideDirectory);
+    fs.writeFileSync(path.join(outsideDirectory, 'app.js'), 'private');
+    fs.rmdirSync(workspacePath);
+    fs.symlinkSync(outsideDirectory, workspacePath);
+
+    assert.throws(() => subject.files.readFile(subject.workspaceId, 'app.js'), WorkspaceFileError);
+    assert.equal(fs.readFileSync(path.join(outsideDirectory, 'app.js'), 'utf8'), 'private');
+  } finally { subject.cleanup(); }
+});
+
+test('rejects a final-component symlink swap before an external read', () => {
+  const subject = fixture();
+  const originalOpen = fs.openSync;
+  try {
+    const workspaceFile = path.join(subject.directory, subject.workspaceId, 'app.js');
+    const outside = path.join(subject.directory, 'outside.js');
+    fs.writeFileSync(workspaceFile, 'safe');
+    fs.writeFileSync(outside, 'private');
+    fs.openSync = function openAndSwap(filePath, ...arguments_) {
+      if (String(filePath).endsWith('/app.js')) {
+        fs.openSync = originalOpen;
+        fs.unlinkSync(workspaceFile);
+        fs.symlinkSync(outside, workspaceFile);
+      }
+      return originalOpen.call(fs, filePath, ...arguments_);
+    };
+
+    assert.throws(() => subject.files.readFile(subject.workspaceId, 'app.js'), WorkspaceFileError);
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'private');
+  } finally {
+    fs.openSync = originalOpen;
+    subject.cleanup();
+  }
+});
+
+test('rejects a final-component symlink swap before an external write', () => {
+  const subject = fixture();
+  const originalOpen = fs.openSync;
+  try {
+    const workspaceFile = path.join(subject.directory, subject.workspaceId, 'app.js');
+    const outside = path.join(subject.directory, 'outside.js');
+    fs.writeFileSync(workspaceFile, 'safe');
+    fs.writeFileSync(outside, 'private');
+    fs.openSync = function openAndSwap(filePath, flags, ...arguments_) {
+      if (String(filePath).endsWith('/app.js') && (flags & fs.constants.O_WRONLY)) {
+        fs.openSync = originalOpen;
+        fs.unlinkSync(workspaceFile);
+        fs.symlinkSync(outside, workspaceFile);
+      }
+      return originalOpen.call(fs, filePath, flags, ...arguments_);
+    };
+
+    assert.throws(() => subject.files.writeFile(subject.workspaceId, 'app.js', 'overwrite'), WorkspaceFileError);
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'private');
+  } finally {
+    fs.openSync = originalOpen;
+    subject.cleanup();
+  }
+});
+
 test('accepts only bounded UTF-8 text in allowlisted file types', () => {
   const subject = fixture();
   try {
