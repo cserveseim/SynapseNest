@@ -48,7 +48,7 @@ deploy/
 
 ## Tasks
 
-### 1. Workspace domain and safe filesystem foundation
+### Task 1: Workspace domain and safe filesystem foundation
 
 **Files:** `src/workspace-store.js`, `src/workspace-files.js`, `test/workspace-store.test.js`, `test/workspace-files.test.js`
 
@@ -57,7 +57,7 @@ deploy/
 3. Implement a confined file service using resolved root validation and `lstat` checks; expose list/read/write only for allowlisted text files.
 4. Run focused tests, then `npm test`.
 
-### 2. Starter template and Git snapshot service
+### Task 2: Starter template and Git snapshot service
 
 **Files:** `templates/static-site/*`, `src/git-service.js`, `test/git-service.test.js`
 
@@ -65,7 +65,7 @@ deploy/
 2. Implement copy-with-validation, noninteractive fixed Git invocation, author identity local to SynapseNest, and export path confinement.
 3. Verify test repo operations and run the full suite.
 
-### 3. Restricted Docker runtime adapter
+### Task 3: Restricted Docker runtime adapter
 
 **Files:** `src/runtime-adapter.js`, `deploy/docker-compose.yml`, `test/runtime-adapter.test.js`
 
@@ -74,7 +74,7 @@ deploy/
 3. Add an opt-in Docker integration test that creates a static preview container and always cleans it up.
 4. Run unit tests and integration test using `SYNAPSENEST_DOCKER_TEST=1`.
 
-### 4. Authenticated workspace API
+### Task 4: Authenticated workspace API
 
 **Files:** `src/auth-store.js`, `src/server.js`, `test/workspace-api.test.js`, `test/auth.test.js`
 
@@ -83,7 +83,7 @@ deploy/
 3. Compose stores/services into the existing server without breaking Genome endpoints.
 4. Run all tests.
 
-### 5. Responsive browser IDE and preview proxy
+### Task 5: Responsive browser IDE and preview proxy
 
 **Files:** `public/workspace.html`, `public/workspace.js`, `public/workspace.css`, `src/server.js`, `test/ui-structure.test.js`
 
@@ -92,7 +92,7 @@ deploy/
 3. Implement a server-side registered preview proxy and terminal relay bounded to the current workspace. Do not allow a user-selected target.
 4. Verify desktop/mobile layout and full tests.
 
-### 6. Deployable self-hosted edge configuration
+### Task 6: Deployable self-hosted edge configuration
 
 **Files:** `deploy/cloudflared/config.yml`, `deploy/systemd/*`, `wrangler.jsonc`, `README.md`, `test/deploy-config.test.js`
 
@@ -101,9 +101,8 @@ deploy/
 3. Configure a named Cloudflare Tunnel and Access application interactively after the service is locally verified; use `synapsenest.eim-agent.com` as the default hostname unless the owner changes it.
 4. Remove direct port 3000 ingress only after Tunnel health check succeeds.
 
-### 7. Verification, commits, and handoff
+### Task 7: Verification, commits, and handoff
 
 1. Run `npm test`, Docker integration checks, service health check, and a manual authenticated workspace smoke test.
 2. Commit each independently verifiable slice locally.
 3. Attempt `git push origin main`; if GitHub credentials are still absent, retain the local commits and report the exact authentication requirement without exposing any secret.
-
