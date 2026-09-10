@@ -43,6 +43,7 @@ class RuntimeAdapter {
       '--cpus', CPU_LIMIT,
       '--memory', MEMORY_LIMIT,
       '--pids-limit', PID_LIMIT,
+      // This bind mount is intentionally writable: workspace editing happens here.
       '--mount', `type=bind,src=${workspacePath},dst=/workspace`,
       '--tmpfs', '/tmp:rw,nosuid,nodev,noexec,size=16m',
       RUNTIME_IMAGE,
@@ -89,8 +90,22 @@ class RuntimeAdapter {
 
   requireRuntime(runtimeId) {
     if (typeof runtimeId !== 'string' || !UUID_PATTERN.test(runtimeId)) throw new RuntimeAdapterError('Runtime ID is invalid.');
-    const runtime = this.runtimes.get(runtimeId);
+    const runtime = this.runtimes.get(runtimeId) || this.recoverRuntime(runtimeId);
     if (!runtime) throw new RuntimeAdapterError('Runtime not found.', 404);
+    return runtime;
+  }
+
+  recoverRuntime(runtimeId) {
+    const name = `synapsenest-runtime-${runtimeId}`;
+    let labels;
+    try {
+      labels = JSON.parse(String(this.execute(['inspect', '--format={{json .Config.Labels}}', name])).trim());
+    } catch {
+      return null;
+    }
+    if (!labels || labels['synapsenest.runtime'] !== runtimeId) return null;
+    const runtime = { name };
+    this.runtimes.set(runtimeId, runtime);
     return runtime;
   }
 

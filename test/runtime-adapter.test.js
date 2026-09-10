@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -69,6 +70,26 @@ test('uses generated runtime IDs for lifecycle operations and rejects unknown ID
   } finally { subject.cleanup(); }
 });
 
+test('recovers a labeled runtime after adapter restart before removing it', () => {
+  const subject = fixture();
+  try {
+    const runtime = subject.adapter.create(WORKSPACE_ID);
+    const restartedAdapter = new RuntimeAdapter({
+      workspacesRoot: path.dirname(subject.workspacePath),
+      execute(args) {
+        subject.calls.push(args);
+        if (args.includes('--format={{json .Config.Labels}}')) {
+          return JSON.stringify({ 'synapsenest.runtime': runtime.id });
+        }
+        return 'container-id\n';
+      }
+    });
+
+    assert.deepEqual(restartedAdapter.remove(runtime.id), { id: runtime.id, status: 'removed' });
+    assert.deepEqual(subject.calls.slice(-2).map((args) => args[0]), ['inspect', 'rm']);
+  } finally { subject.cleanup(); }
+});
+
 test('rejects workspace IDs outside the configured, app-owned workspace root', () => {
   const subject = fixture();
   try {
@@ -92,9 +113,21 @@ test('creates and removes an isolated static preview container when Docker integ
     assert.deepEqual(adapter.start(runtime.id), { id: runtime.id, status: 'running' });
     assert.deepEqual(adapter.status(runtime.id), { id: runtime.id, status: 'running' });
   } finally {
-    if (runtime) {
-      try { adapter.remove(runtime.id); } catch { /* integration cleanup must not hide the test result */ }
+    try {
+      if (runtime) {
+        const containerName = `synapsenest-runtime-${runtime.id}`;
+        try {
+          const restartedAdapter = new RuntimeAdapter({ workspacesRoot });
+          restartedAdapter.remove(runtime.id);
+          assert.throws(() => childProcess.execFileSync('docker', ['container', 'inspect', containerName], { stdio: 'ignore' }));
+        } catch (error) {
+          // A failed assertion must still not strand the test container.
+          try { childProcess.execFileSync('docker', ['rm', '--force', containerName], { stdio: 'ignore' }); } catch { /* preserve the adapter failure */ }
+          throw error;
+        }
+      }
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
     }
-    fs.rmSync(directory, { recursive: true, force: true });
   }
 });

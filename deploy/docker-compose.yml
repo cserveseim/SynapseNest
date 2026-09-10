@@ -15,6 +15,7 @@ services:
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=16m
     volumes:
+      # Intentionally writable for workspace editing; the image root remains read-only.
       - runtime-workspace:/workspace
 
 volumes:
