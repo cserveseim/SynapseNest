@@ -1,0 +1,10 @@
+:root {
+  color: #18202e;
+  background: #f5f7fb;
+  font-family: system-ui, sans-serif;
+}
+
+body { margin: 0; }
+main { max-width: 42rem; margin: 12vh auto; padding: 2rem; }
+.eyebrow { color: #6856d9; font-weight: 700; text-transform: uppercase; }
+button { border: 0; border-radius: .4rem; padding: .7rem 1rem; background: #6856d9; color: white; }
