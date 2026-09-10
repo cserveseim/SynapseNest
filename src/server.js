@@ -24,7 +24,7 @@ async function handle(request, response) {
     if (url.pathname === '/api/projects' && method === 'GET') return sendJson(response, 200, { projects: store.listProjects() });
     if (url.pathname === '/api/projects' && method === 'POST') return sendJson(response, 201, { project: store.createProject(await readJson(request)) });
     const match = /^\/api\/projects\/([^/]+)(?:\/(synapses|winner|publish|export))?$/.exec(url.pathname);
-    if (match) return await handleProjectRoute(request, response, method, decodeURIComponent(match[1]), match[2]);
+    if (match) return await handleProjectRoute(request, response, method, decodeProjectId(match[1]), match[2]);
     if (url.pathname.startsWith('/api/')) return sendJson(response, 404, { error: 'API route not found.' });
     return serveStatic(url.pathname, response);
   } catch (error) {
@@ -90,6 +90,14 @@ function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
   response.end(`${JSON.stringify(body)}\n`);
 }
+function decodeProjectId(encodedId) {
+  try {
+    return decodeURIComponent(encodedId);
+  } catch {
+    throw Object.assign(new Error("Malformed project ID."), { statusCode: 400 });
+  }
+}
+
 function numberFromEnvironment(value, fallback) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 && number < 65536 ? number : fallback;

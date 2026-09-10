@@ -5,7 +5,8 @@
   "description": "A local Project Genome Studio",
   "scripts": {
     "dev": "node src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"
