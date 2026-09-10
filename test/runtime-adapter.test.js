@@ -90,6 +90,41 @@ test('recovers a labeled runtime after adapter restart before removing it', () =
   } finally { subject.cleanup(); }
 });
 
+test('reports a Docker daemon outage during runtime recovery as unavailable', () => {
+  const subject = fixture();
+  try {
+    const adapter = new RuntimeAdapter({
+      workspacesRoot: path.dirname(subject.workspacePath),
+      execute() { throw new Error('Cannot connect to the Docker daemon'); }
+    });
+
+    assert.throws(
+      () => adapter.status('00000000-0000-4000-8000-000000000000'),
+      (error) => error instanceof RuntimeAdapterError && error.statusCode === 503
+    );
+  } finally { subject.cleanup(); }
+});
+
+test('reports an explicit Docker no-such-object response as runtime not found', () => {
+  const subject = fixture();
+  try {
+    const adapter = new RuntimeAdapter({
+      workspacesRoot: path.dirname(subject.workspacePath),
+      execute() {
+        const error = new Error('docker inspect failed');
+        error.status = 1;
+        error.stderr = 'Error response from daemon: No such object: synapsenest-runtime';
+        throw error;
+      }
+    });
+
+    assert.throws(
+      () => adapter.status('00000000-0000-4000-8000-000000000000'),
+      (error) => error instanceof RuntimeAdapterError && error.statusCode === 404
+    );
+  } finally { subject.cleanup(); }
+});
+
 test('rejects workspace IDs outside the configured, app-owned workspace root', () => {
   const subject = fixture();
   try {

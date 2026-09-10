@@ -100,8 +100,9 @@ class RuntimeAdapter {
     let labels;
     try {
       labels = JSON.parse(String(this.execute(['inspect', '--format={{json .Config.Labels}}', name])).trim());
-    } catch {
-      return null;
+    } catch (error) {
+      if (isDockerObjectNotFound(error)) return null;
+      throw new RuntimeAdapterError('Docker runtime operation failed.', 503);
     }
     if (!labels || labels['synapsenest.runtime'] !== runtimeId) return null;
     const runtime = { name };
@@ -116,6 +117,12 @@ class RuntimeAdapter {
       throw new RuntimeAdapterError('Docker runtime operation failed.', 503);
     }
   }
+}
+
+function isDockerObjectNotFound(error) {
+  const exitCode = error && (error.status ?? error.code);
+  const stderr = Buffer.isBuffer(error && error.stderr) ? error.stderr.toString('utf8') : String((error && error.stderr) || '');
+  return exitCode === 1 && /no such object/i.test(stderr);
 }
 
 function executeDocker(args) {
