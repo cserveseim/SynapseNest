@@ -50,6 +50,35 @@ async function startApp(directory, previewPort, extra = {}) {
   return { server, origin: `http://127.0.0.1:${server.address().port}` };
 }
 
+test('accepts login from the public HTTPS frontends and rejects other origins', async () => {
+  const subject = fixture();
+  const { server, origin } = await startApp(subject.directory, 9);
+  try {
+    const session = await request(origin, 'POST', '/api/auth/bootstrap', { password: PASSWORD });
+    await request(origin, 'POST', '/api/auth/logout', {}, session);
+    const allowed = await request(origin, 'POST', '/api/auth/login', { password: PASSWORD }, undefined, {
+      Origin: 'https://synapsenest-edge.core-ao.workers.dev',
+      'X-Forwarded-Host': 'synapsenest-edge.core-ao.workers.dev'
+    });
+    assert.equal(allowed.status, 200);
+    const viaPort = await request(origin, 'POST', '/api/auth/logout', {}, allowed);
+    assert.ok(viaPort.status < 500);
+    const login8443 = await request(origin, 'POST', '/api/auth/login', { password: PASSWORD }, undefined, {
+      Origin: 'https://2.154.66.148.host.secureserver.net:8443'
+    });
+    assert.equal(login8443.status, 200);
+    const blocked = await request(origin, 'POST', '/api/auth/logout', {}, login8443);
+    assert.ok(blocked.status);
+    const evil = await request(origin, 'POST', '/api/auth/login', { password: PASSWORD }, undefined, {
+      Origin: 'https://evil.example'
+    });
+    assert.equal(evil.status, 403);
+  } finally {
+    await close(server);
+    fs.rmSync(subject.directory, { recursive: true, force: true });
+  }
+});
+
 test('denies workspace access until the owner session is established', async () => {
   const subject = fixture();
   const { server, origin } = await startApp(subject.directory, 9);
@@ -229,11 +258,11 @@ test('does not expose the terminal over plain HTTP', async () => {
   }
 });
 
-function request(origin, method, pathname, body, session) {
+function request(origin, method, pathname, body, session, extraHeaders) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? undefined : JSON.stringify(body);
     const url = new URL(pathname, origin);
-    const headers = {};
+    const headers = { ...(extraHeaders || {}) };
     if (payload) headers['Content-Type'] = 'application/json';
     if (session?.cookie) headers.Cookie = `sn_session=${session.cookie}`;
     if (session?.csrfToken && payload !== undefined) headers['X-CSRF-Token'] = session.csrfToken;

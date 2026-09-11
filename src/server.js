@@ -59,10 +59,7 @@ function createApp(options = {}) {
   });
 
   const server = http.createServer((request, response) => {
-    handle(request, response).catch((error) => {
-      console.error(error);
-      sendJson(response, 500, { error: 'Internal server error.' });
-    });
+    handle(request, response).catch((error) => sendError(response, error));
   });
 
   server.on('upgrade', (request, socket, head) => {
@@ -78,10 +75,10 @@ function createApp(options = {}) {
     try {
       if (url.pathname === '/api/health' && method === 'GET') return sendJson(response, 200, { ok: true, product: 'SynapseNest' });
       if (url.pathname === '/api/ai/status' && method === 'GET') return sendJson(response, 200, ai.status());
-      if (url.pathname === '/api/auth/session' && method === 'GET') return handleAuthSession(request, response);
-      if (url.pathname === '/api/auth/bootstrap' && method === 'POST') return handleBootstrap(request, response);
-      if (url.pathname === '/api/auth/login' && method === 'POST') return handleLogin(request, response);
-      if (url.pathname === '/api/auth/logout' && method === 'POST') return handleLogout(request, response);
+      if (url.pathname === '/api/auth/session' && method === 'GET') return await handleAuthSession(request, response);
+      if (url.pathname === '/api/auth/bootstrap' && method === 'POST') return await handleBootstrap(request, response);
+      if (url.pathname === '/api/auth/login' && method === 'POST') return await handleLogin(request, response);
+      if (url.pathname === '/api/auth/logout' && method === 'POST') return await handleLogout(request, response);
 
       if (url.pathname === '/api/projects' && method === 'GET') return sendJson(response, 200, { projects: store.listProjects() });
       if (url.pathname === '/api/projects' && method === 'POST') return sendJson(response, 201, { project: store.createProject(await readJson(request)) });
@@ -455,17 +452,41 @@ function appendCookie(response, cookie) {
   else response.setHeader('Set-Cookie', Array.isArray(current) ? [...current, cookie] : [current, cookie]);
 }
 
+const PUBLIC_HOSTS = new Set([
+  '127.0.0.1',
+  'localhost',
+  'synapsenest-edge.core-ao.workers.dev',
+  '2.154.66.148.host.secureserver.net',
+  'synapsenest.eim-agent.com',
+  ...String(process.env.SYNAPSENEST_PUBLIC_HOSTS || '').split(',').map((host) => host.trim().toLowerCase()).filter(Boolean)
+]);
+
+function hostnameOnly(host) {
+  return String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, '').split(':')[0];
+}
+
+function requestHosts(request) {
+  const hosts = [];
+  for (const header of [request.headers.host, request.headers['x-forwarded-host']]) {
+    if (!header) continue;
+    hosts.push(String(header).split(',')[0].trim().toLowerCase());
+  }
+  return hosts;
+}
+
 function assertSameOrigin(request) {
   const origin = request.headers.origin;
   if (!origin) return;
+  let originHost;
   try {
-    if (new URL(origin).host !== request.headers.host) {
-      throw Object.assign(new Error('Cross-origin request is not allowed.'), { statusCode: 403 });
-    }
-  } catch (error) {
-    if (error.statusCode) throw error;
+    originHost = new URL(origin).host.toLowerCase();
+  } catch {
     throw Object.assign(new Error('Cross-origin request is not allowed.'), { statusCode: 403 });
   }
+  const originName = hostnameOnly(originHost);
+  const matchesRequest = requestHosts(request).some((host) => host === originHost || hostnameOnly(host) === originName);
+  if (matchesRequest || PUBLIC_HOSTS.has(originName)) return;
+  throw Object.assign(new Error('Cross-origin request is not allowed.'), { statusCode: 403 });
 }
 
 function isAllowedPreviewHost(host) {
