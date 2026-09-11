@@ -36,7 +36,19 @@
       : 'The first password becomes the local owner secret. It never leaves this server.';
     $('#authSubmit').textContent = body.owner ? 'Sign in →' : 'Create owner →';
     $('#crumb').textContent = authenticated ? 'Runtime' : 'Sign in';
-    if (authenticated) await loadWorkspaces();
+    if (authenticated) {
+      await loadAiStatus();
+      await loadWorkspaces();
+    }
+  }
+
+  async function loadAiStatus() {
+    const { body } = await request('/api/ai/status');
+    const status = $('#aiStatus');
+    if (!status) return;
+    status.textContent = body.configured
+      ? `SpaceXAI ready · ${body.model}`
+      : 'Set XAI_API_KEY on this VPS to enable Grok in the workspace.';
   }
 
   async function loadWorkspaces(selectId) {
@@ -165,6 +177,28 @@
     link.click();
     URL.revokeObjectURL(url);
     flash('Workspace archive downloaded.');
+  }));
+
+  $('#chatForm').addEventListener('submit', guard(async (event) => {
+    event.preventDefault();
+    if (!state.workspace) throw new Error('Create a workspace first.');
+    const prompt = $('#chatInput').value.trim();
+    if (!prompt) return;
+    const log = $('#chatLog');
+    log.insertAdjacentHTML('beforeend', `<div class="msg user">${escapeHtml(prompt)}</div>`);
+    $('#chatInput').value = '';
+    $('#chatSend').disabled = true;
+    try {
+      const { body } = await request(`/api/workspaces/${state.workspace.id}/ai`, { method: 'POST', body: JSON.stringify({ prompt }) });
+      const written = (body.written || []).join(', ');
+      log.insertAdjacentHTML('beforeend', `<div class="msg assistant">${escapeHtml(body.reply || 'Done.')}${written ? `\nUpdated: ${escapeHtml(written)}` : ''}</div>`);
+      log.scrollTop = log.scrollHeight;
+      await openWorkspace(state.workspace.id);
+      if (body.written && body.written[0]) await openFile(body.written[0]);
+      flash(written ? `Grok updated ${written}.` : 'Grok replied.');
+    } finally {
+      $('#chatSend').disabled = false;
+    }
   }));
 
   $('#logout').addEventListener('click', guard(async () => {

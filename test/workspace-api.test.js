@@ -22,8 +22,9 @@ function fixture() {
   return { directory, preview };
 }
 
-async function startApp(directory, previewPort) {
+async function startApp(directory, previewPort, extra = {}) {
   const { server } = createApp({
+    skipEnvFile: true,
     rootDir: path.join(__dirname, '..'),
     dataFile: path.join(directory, 'genomes.json'),
     workspaceDataFile: path.join(directory, 'workspaces.json'),
@@ -41,7 +42,8 @@ async function startApp(directory, previewPort) {
           stdio: ['pipe', 'pipe', 'pipe']
         });
       }
-    }
+    },
+    ...extra
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   return { server, origin: `http://127.0.0.1:${server.address().port}` };
@@ -120,6 +122,92 @@ test('rejects mutating workspace requests without a CSRF token', async () => {
     assert.equal(response.status, 403);
   } finally {
     await close(server);
+    fs.rmSync(subject.directory, { recursive: true, force: true });
+  }
+});
+
+test('applies SpaceXAI workspace edits through the confined file API', async () => {
+  const subject = fixture();
+  const calls = [];
+  const { server, origin } = await startApp(subject.directory, 9, {
+    aiApiKey: 'test-key',
+    aiFetch: async (url, options) => {
+      calls.push({ url, body: JSON.parse(options.body) });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  reply: 'Added a heading.',
+                  files: [{ path: 'index.html', content: '<h1>Built by SynapseNest</h1>\n' }]
+                })
+              }
+            }]
+          });
+        }
+      };
+    }
+  });
+  try {
+    const session = await request(origin, 'POST', '/api/auth/bootstrap', { password: PASSWORD });
+    const created = await request(origin, 'POST', '/api/workspaces', { templateId: 'static-site' }, session);
+    const result = await request(origin, 'POST', `/api/workspaces/${created.body.workspace.id}/ai`, { prompt: 'Make a heading.' }, session);
+    assert.equal(result.status, 200);
+    assert.equal(result.body.reply, 'Added a heading.');
+    assert.deepEqual(result.body.written, ['index.html']);
+    const file = await request(origin, 'GET', `/api/workspaces/${created.body.workspace.id}/file?path=index.html`, undefined, session);
+    assert.equal(file.body.content, '<h1>Built by SynapseNest</h1>\n');
+    assert.match(calls[0].url, /api\.x\.ai\/v1\/chat\/completions/);
+    assert.equal(calls[0].body.model, 'grok-4.6');
+  } finally {
+    await close(server);
+    fs.rmSync(subject.directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects unsafe AI file paths and reports missing SpaceXAI configuration', async () => {
+  const subject = fixture();
+  const { server, origin } = await startApp(subject.directory, 9, {
+    aiApiKey: 'test-key',
+    aiFetch: async () => ({
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                reply: 'Tried to escape.',
+                files: [{ path: '../secret.txt', content: 'nope' }]
+              })
+            }
+          }]
+        });
+      }
+    })
+  });
+  const unconfigured = await startApp(path.join(subject.directory, 'plain'), 9);
+  try {
+    const session = await request(origin, 'POST', '/api/auth/bootstrap', { password: PASSWORD });
+    const created = await request(origin, 'POST', '/api/workspaces', { templateId: 'static-site' }, session);
+    const escaped = await request(origin, 'POST', `/api/workspaces/${created.body.workspace.id}/ai`, { prompt: 'Write outside.' }, session);
+    assert.equal(escaped.status, 200);
+    assert.deepEqual(escaped.body.written, []);
+    assert.equal(escaped.body.rejected.length, 1);
+
+    const status = await request(unconfigured.origin, 'GET', '/api/ai/status');
+    assert.equal(status.status, 200);
+    assert.equal(status.body.configured, false);
+    const denied = await request(unconfigured.origin, 'POST', '/api/auth/bootstrap', { password: PASSWORD });
+    const workspace = await request(unconfigured.origin, 'POST', '/api/workspaces', { templateId: 'static-site' }, denied);
+    const missing = await request(unconfigured.origin, 'POST', `/api/workspaces/${workspace.body.workspace.id}/ai`, { prompt: 'Hello' }, denied);
+    assert.equal(missing.status, 503);
+  } finally {
+    await close(server);
+    await close(unconfigured.server);
     fs.rmSync(subject.directory, { recursive: true, force: true });
   }
 });

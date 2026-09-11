@@ -1,11 +1,12 @@
-# SynapseNest — Project Genome Studio
+# SynapseNest — self-hosted AI workspace
 
-SynapseNest is a local, self-hosted workspace for recording a project's
-creation history as a portable **Project Genome**, then opening a selected
-branch in an isolated Docker **Workspace**. Create projects, fork synapses,
-compare previews, select a winner, record a publish event, and export the
-genome as JSON. Workspaces add a confined file editor, Git snapshots, a
-container terminal, and a proxied static preview.
+SynapseNest is a Replit-style creation environment you run on your own
+machine: Grok (SpaceXAI) builds inside a Docker sandbox, you edit and
+preview in the browser, Git snapshots keep experiments, and a **Project
+Genome** records lineage, winners, and exports. No cloud IDE bill.
+
+Open `/workspace` for the AI IDE. The genome studio on `/` keeps forks,
+comparisons, and publish proofs.
 
 ## Run locally
 
@@ -16,8 +17,11 @@ npm test
 npm start
 ```
 
+The AI workspace is at [http://127.0.0.1:3000/workspace](http://127.0.0.1:3000/workspace).
 The genome studio is at [http://127.0.0.1:3000](http://127.0.0.1:3000).
-Docker workspaces are at [http://127.0.0.1:3000/workspace](http://127.0.0.1:3000/workspace).
+
+Copy `.env.example` to `.env` and set `XAI_API_KEY` so Grok can edit workspace
+files. The key stays on the server.
 
 On this VPS a single systemd unit `synapsenest.service` should own port 3000.
 Do not start a second `node src/server.js` process.
@@ -80,6 +84,8 @@ Workspace (owner session + CSRF on mutating requests):
 - `POST /api/workspaces/:id/snapshots` — create a Git snapshot branch
 - `GET /api/workspaces/:id/export` — download a tar/zip archive
 - `GET /api/workspaces/:id/preview/` — proxied container preview
+- `POST /api/workspaces/:id/ai` — SpaceXAI turn; writes only through confined files
+- `GET /api/ai/status` — whether SpaceXAI is configured
 - `GET /api/workspaces/:id/terminal` — WebSocket terminal relay
 
 ## Production templates

@@ -6,9 +6,17 @@
 .pane-switch{display:none;gap:8px;padding:0 18px 12px}
 .pane-switch button{border:1px solid var(--line);background:transparent;color:#c9d5e8;border-radius:7px;padding:8px 10px;font-size:12px}
 .pane-switch button.active{border-color:var(--lime);color:var(--lime)}
-.workspace-grid{display:grid;grid-template-columns:minmax(180px,.7fr) minmax(0,1.2fr) minmax(0,1fr);grid-template-rows:minmax(280px,1fr) 220px;gap:12px;padding:0 clamp(18px,4vw,66px) 28px;min-width:0}
+.workspace-grid{display:grid;grid-template-columns:minmax(180px,.7fr) minmax(0,1.1fr) minmax(0,.9fr) minmax(0,.9fr);grid-template-rows:minmax(280px,1fr) 220px;gap:12px;padding:0 clamp(18px,4vw,66px) 28px;min-width:0}
 .pane{min-width:0;border:1px solid var(--line);border-radius:12px;background:#0d1728;padding:12px;display:flex;flex-direction:column;overflow:hidden}
 .files-pane{grid-row:1 / span 2}
+.chat-pane{min-height:180px}
+#chatLog{flex:1;overflow:auto;display:grid;gap:8px;align-content:start}
+#chatLog .msg{border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px;line-height:1.45;white-space:pre-wrap}
+#chatLog .msg.user{background:#182740}
+#chatLog .msg.assistant{border-color:#c7ff6544}
+#chatForm{display:grid;gap:8px;margin-top:8px}
+#chatInput{min-height:72px;resize:vertical}
+.ai-status{color:var(--muted);font-size:11px;margin:8px 0 0}
 .editor-pane{min-height:280px}
 .preview-pane,.terminal-pane{min-height:180px}
 #fileTree{display:grid;gap:4px;overflow:auto}

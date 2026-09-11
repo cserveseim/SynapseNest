@@ -7,6 +7,7 @@ data/*.json
 data/*.txt
 data/workspaces/
 data/exports/
+.env
 
 # Runtime output
 *.log

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#07101d">
-  <title>SynapseNest · Workspace</title>
+  <title>SynapseNest · Self-hosted AI workspace</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/workspace.css">
 </head>
@@ -20,7 +20,7 @@
       <header>
         <button id="menu" type="button" aria-label="Menu">☰</button>
         <div class="crumb">WORKSPACE <b>/</b> <strong id="crumb">Sign in</strong></div>
-        <span class="local">● SELF-HOSTED RUNTIME</span>
+        <span class="local">● SELF-HOSTED AI WORKSPACE</span>
         <a class="quiet" href="/">Genomes</a>
         <button id="logout" class="quiet" type="button" hidden>Log out</button>
       </header>
@@ -41,9 +41,9 @@
       <section id="workspaceStudio" hidden>
         <div class="workspace-toolbar">
           <div>
-            <p class="eyebrow">DOCKER WORKSPACE</p>
+            <p class="eyebrow">AI CREATION ENVIRONMENT</p>
             <h1 id="workspaceTitle">Static site</h1>
-            <p id="workspaceMeta">Create a workspace to open files, a terminal, and a live preview.</p>
+            <p id="workspaceMeta">Ask Grok to build, then edit, preview, snapshot, and export — all on this VPS.</p>
           </div>
           <div class="workspace-actions">
             <button id="start" class="primary" type="button">Start runtime</button>
@@ -57,6 +57,7 @@
           <button type="button" data-pane="files" class="active">Files</button>
           <button type="button" data-pane="editor">Editor</button>
           <button type="button" data-pane="preview">Preview</button>
+          <button type="button" data-pane="chat">AI</button>
           <button type="button" data-pane="terminal">Terminal</button>
         </div>
         <div class="workspace-grid">
@@ -71,6 +72,15 @@
           <section class="pane preview-pane" data-pane-panel="preview">
             <p class="eyebrow">PREVIEW</p>
             <iframe id="preview" title="Workspace preview" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"></iframe>
+          </section>
+          <section class="pane chat-pane" data-pane-panel="chat">
+            <p class="eyebrow">GROK · SPACEXAI</p>
+            <div id="chatLog"></div>
+            <form id="chatForm">
+              <textarea id="chatInput" maxlength="8000" placeholder="Build a landing page, restyle the colors, add a second section…"></textarea>
+              <button class="primary" id="chatSend" type="submit">Build with AI</button>
+            </form>
+            <p id="aiStatus" class="ai-status">Checking SpaceXAI…</p>
           </section>
           <section class="pane terminal-pane" data-pane-panel="terminal">
             <p class="eyebrow">TERMINAL</p>

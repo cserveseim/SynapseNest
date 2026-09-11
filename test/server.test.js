@@ -11,6 +11,7 @@ const { createApp } = require('../src/server');
 
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'synapsenest-server-'));
 const { server } = createApp({
+  skipEnvFile: true,
   dataFile: path.join(directory, 'project-genomes.json'),
   workspaceDataFile: path.join(directory, 'workspaces.json'),
   workspacesRoot: path.join(directory, 'workspaces'),

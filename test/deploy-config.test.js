@@ -23,6 +23,7 @@ test('systemd unit binds the single app process to localhost by default and does
   assert.match(unit, /PORT=3000/);
   assert.match(unit, /HOST=127\.0\.0\.1/);
   assert.match(unit, /SYNAPSENEST_SECURE_COOKIES=1/);
+  assert.match(unit, /EnvironmentFile=-\/home\/nexus\/SynapseNest\/\.env/);
   assert.match(unit, /ExecStart=\/usr\/bin\/node src\/server\.js/);
   assert.doesNotMatch(unit, /password|token|BEGIN /i);
 });

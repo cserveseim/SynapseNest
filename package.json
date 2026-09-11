@@ -2,7 +2,7 @@
   "name": "synapsenest",
   "version": "1.0.0",
   "private": true,
-  "description": "A local Project Genome Studio",
+  "description": "Self-hosted AI workspace: Grok-powered creation, Docker sandboxes, and Project Genome lineage",
   "scripts": {
     "dev": "node src/server.js",
     "start": "node src/server.js",

@@ -28,6 +28,8 @@ test('workspace IDE uses relative APIs, a sandboxed preview, and a single-pane m
   assert.match(workspaceHtml, /sandbox="allow-scripts allow-forms"/);
   assert.doesNotMatch(workspaceHtml, /allow-same-origin|allow-top-navigation|allow-popups/);
   assert.match(workspaceJs, /\/api\/workspaces\/\$\{workspaceId\}\/terminal/);
+  assert.match(workspaceJs, /\/api\/workspaces\/\$\{state\.workspace\.id\}\/ai/);
+  assert.match(workspaceHtml, /id="chatForm"/);
   assert.match(workspaceJs, /WebSocket/);
   assert.match(workspaceJs, /location\.host/);
   assert.doesNotMatch(workspaceJs, /new WebSocket\([`'"]ws:\/\//);

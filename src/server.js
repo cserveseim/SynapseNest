@@ -9,6 +9,7 @@ const { WorkspaceFiles, WorkspaceFileError } = require('./workspace-files');
 const { GitService, GitServiceError } = require('./git-service');
 const { RuntimeAdapter, RuntimeAdapterError } = require('./runtime-adapter');
 const { AuthStore, AuthStoreError } = require('./auth-store');
+const { AiStudio, AiStudioError } = require('./ai-studio');
 const { isWebSocketUpgrade, accept } = require('./websocket');
 
 const ROOT_DIR = path.join(__dirname, '..');
@@ -33,6 +34,7 @@ const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 function createApp(options = {}) {
   const rootDir = options.rootDir || ROOT_DIR;
+  if (!options.skipEnvFile) loadDotEnv(options.envFile || path.join(rootDir, '.env'));
   const publicDir = options.publicDir || path.join(rootDir, 'public');
   const store = new ProjectGenomeStore(options.dataFile || path.join(rootDir, 'data', 'project-genomes.json'));
   const workspaceStore = new WorkspaceStore(options.workspaceDataFile || path.join(rootDir, 'data', 'workspaces.json'));
@@ -48,6 +50,11 @@ function createApp(options = {}) {
   const auth = new AuthStore(options.authFile || path.join(rootDir, 'data', 'auth.json'));
   const cookieSecure = options.cookieSecure ?? process.env.SYNAPSENEST_SECURE_COOKIES === '1';
   const fetchImpl = options.fetch || globalThis.fetch;
+  const ai = options.aiStudio || new AiStudio({
+    apiKey: options.aiApiKey ?? process.env.XAI_API_KEY ?? '',
+    model: options.aiModel || process.env.XAI_MODEL,
+    fetchImpl: options.aiFetch || fetchImpl
+  });
 
   const server = http.createServer((request, response) => {
     handle(request, response).catch((error) => {
@@ -67,7 +74,8 @@ function createApp(options = {}) {
     const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
     const method = request.method || 'GET';
     try {
-      if (url.pathname === '/api/health' && method === 'GET') return sendJson(response, 200, { ok: true });
+      if (url.pathname === '/api/health' && method === 'GET') return sendJson(response, 200, { ok: true, product: 'SynapseNest' });
+      if (url.pathname === '/api/ai/status' && method === 'GET') return sendJson(response, 200, ai.status());
       if (url.pathname === '/api/auth/session' && method === 'GET') return handleAuthSession(request, response);
       if (url.pathname === '/api/auth/bootstrap' && method === 'POST') return handleBootstrap(request, response);
       if (url.pathname === '/api/auth/login' && method === 'POST') return handleLogin(request, response);
@@ -78,7 +86,7 @@ function createApp(options = {}) {
       const projectMatch = /^\/api\/projects\/([^/]+)(?:\/(synapses|winner|publish|export))?$/.exec(url.pathname);
       if (projectMatch) return await handleProjectRoute(request, response, method, decodeProjectId(projectMatch[1]), projectMatch[2]);
 
-      const workspaceMatch = /^\/api\/workspaces(?:\/([^/]+))?(?:\/(start|stop|files|file|snapshots|export|preview|terminal)(?:\/(.*))?)?$/.exec(url.pathname);
+      const workspaceMatch = /^\/api\/workspaces(?:\/([^/]+))?(?:\/(start|stop|files|file|snapshots|export|preview|terminal|ai)(?:\/(.*))?)?$/.exec(url.pathname);
       if (workspaceMatch) return await handleWorkspaceRoute(request, response, method, url, workspaceMatch[1], workspaceMatch[2], workspaceMatch[3]);
 
       if (url.pathname.startsWith('/api/')) return sendJson(response, 404, { error: 'API route not found.' });
@@ -162,6 +170,7 @@ function createApp(options = {}) {
     if (!workspaceId && method === 'POST') {
       const workspace = workspaceStore.createWorkspace(await readJson(request));
       gitService.createStarter(workspace.id);
+      try { startWorkspace(workspace.id); } catch { /* runtime start is best-effort on create */ }
       return sendJson(response, 201, { workspace: workspaceStore.getWorkspace(workspace.id) });
     }
     if (!workspaceId) return sendJson(response, 405, { error: 'Method not allowed.' });
@@ -196,6 +205,7 @@ function createApp(options = {}) {
       return response.end(data);
     }
     if (action === 'preview' && method === 'GET') return proxyPreview(request, response, workspace, rest);
+    if (action === 'ai' && method === 'POST') return sendJson(response, 200, await runWorkspaceAi(workspaceId, await readJson(request)));
     if (action === 'terminal') return sendJson(response, 426, { error: 'Workspace terminal requires a WebSocket upgrade.' });
     return sendJson(response, 405, { error: 'Method not allowed.' });
   }
@@ -226,6 +236,31 @@ function createApp(options = {}) {
     }
     if (workspace.status === 'running') workspaceStore.transitionWorkspace(workspaceId, 'stopped');
     return workspaceStore.getWorkspace(workspaceId);
+  }
+
+  async function runWorkspaceAi(workspaceId, body) {
+    const listing = files.listFiles(workspaceId);
+    const context = listing.slice(0, 12).map((entry) => ({
+      path: entry.path,
+      content: files.readFile(workspaceId, entry.path)
+    }));
+    const result = await ai.turn({ prompt: body.prompt, files: context });
+    const written = [];
+    const rejected = [];
+    for (const file of result.files) {
+      try {
+        files.writeFile(workspaceId, file.path, file.content);
+        written.push(file.path);
+      } catch (error) {
+        rejected.push({ path: file.path, error: error.message });
+      }
+    }
+    return {
+      reply: result.reply,
+      written,
+      rejected,
+      files: files.listFiles(workspaceId)
+    };
   }
 
   function ensureStarter(workspaceId) {
@@ -320,6 +355,7 @@ function createApp(options = {}) {
       || error instanceof GitServiceError
       || error instanceof RuntimeAdapterError
       || error instanceof AuthStoreError
+      || error instanceof AiStudioError
       || error.statusCode
     ) {
       return sendJson(response, error.statusCode || 400, { error: error.message });
@@ -328,7 +364,27 @@ function createApp(options = {}) {
     return sendJson(response, 500, { error: 'Internal server error.' });
   }
 
-  return { server, store, workspaceStore, auth };
+  return { server, store, workspaceStore, auth, ai };
+}
+
+function loadDotEnv(filePath) {
+  let text;
+  try { text = fs.readFileSync(filePath, 'utf8'); } catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const index = trimmed.indexOf('=');
+    if (index === -1) continue;
+    const name = trimmed.slice(0, index).trim();
+    let value = trimmed.slice(index + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (name && process.env[name] === undefined) process.env[name] = value;
+  }
 }
 
 function readJson(request) {
