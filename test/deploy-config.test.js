@@ -10,6 +10,7 @@ const compose = fs.readFileSync(path.join(root, 'deploy', 'docker-compose.yml'),
 const unit = fs.readFileSync(path.join(root, 'deploy', 'systemd', 'synapsenest.service'), 'utf8');
 const tunnel = fs.readFileSync(path.join(root, 'deploy', 'cloudflared', 'config.yml'), 'utf8');
 const wrangler = fs.readFileSync(path.join(root, 'wrangler.jsonc'), 'utf8');
+const nginx = fs.readFileSync(path.join(root, 'deploy', 'nginx-synapsenest.conf'), 'utf8');
 
 test('runtime compose profile never publishes a Docker port', () => {
   assert.match(compose, /network_mode:\s*none/);
@@ -21,6 +22,7 @@ test('systemd unit binds the single app process to localhost by default and does
   assert.match(unit, /User=nexus/);
   assert.match(unit, /PORT=3000/);
   assert.match(unit, /HOST=127\.0\.0\.1/);
+  assert.match(unit, /SYNAPSENEST_SECURE_COOKIES=1/);
   assert.match(unit, /ExecStart=\/usr\/bin\/node src\/server\.js/);
   assert.doesNotMatch(unit, /password|token|BEGIN /i);
 });
@@ -32,7 +34,14 @@ test('Cloudflare tunnel template only forwards to the local app', () => {
   assert.doesNotMatch(tunnel, /3000:3000/);
 });
 
-test('Wrangler config keeps placeholders instead of credentials', () => {
-  assert.match(wrangler, /YOUR_CLOUDFLARE_ACCOUNT_ID/);
-  assert.doesNotMatch(wrangler, /[A-Za-z0-9]{40,}/);
+test('host nginx TLS frontend only proxies to localhost and does not publish Docker ports', () => {
+  assert.match(nginx, /listen 8443 ssl/);
+  assert.match(nginx, /proxy_pass http:\/\/127\.0\.0\.1:3000/);
+  assert.doesNotMatch(nginx, /0\.0\.0\.0:3000/);
+});
+
+test('Wrangler config points at the edge worker without embedding secrets', () => {
+  assert.match(wrangler, /synapsenest-edge/);
+  assert.match(wrangler, /deploy\/edge-worker\.js/);
+  assert.doesNotMatch(wrangler, /oauth_token|TunnelSecret|BEGIN /);
 });

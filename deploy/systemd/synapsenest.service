@@ -11,6 +11,7 @@ WorkingDirectory=/home/nexus/SynapseNest
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOST=127.0.0.1
+Environment=SYNAPSENEST_SECURE_COOKIES=1
 ExecStart=/usr/bin/node src/server.js
 Restart=on-failure
 RestartSec=3

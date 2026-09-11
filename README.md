@@ -89,9 +89,15 @@ Workspace (owner session + CSRF on mutating requests):
 - `deploy/cloudflared/config.yml` — Tunnel to `http://127.0.0.1:3000`
 - `wrangler.jsonc` — Cloudflare account placeholder only
 
-The systemd unit binds `127.0.0.1` by default. Keep a local override of
-`HOST=0.0.0.0` only until a Cloudflare Tunnel to `synapsenest.eim-agent.com`
-is healthy, then remove public port 3000.
+The app binds `127.0.0.1:3000`. Public HTTPS is:
+
+- https://2.154.66.148.host.secureserver.net:8443
+- https://synapsenest-edge.core-ao.workers.dev
+
+Host nginx on 8443 proxies to localhost. A Cloudflare Tunnel named
+`synapsenest` is running for `synapsenest.eim-agent.com`; add a proxied
+CNAME to `e4811f57-d6f2-42a8-a55f-ad1fe35332b6.cfargotunnel.com` when
+zone DNS write access is available. Do not open port 3000 on the firewall.
 
 ## Manual live validation
 

@@ -1,6 +1,7 @@
 {
   "name": "synapsenest-edge",
-  "account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
+  "account_id": "8bcdc171c5179205268ff45cb180d54f",
   "compatibility_date": "2026-09-10",
-  "workers_dev": false
+  "main": "deploy/edge-worker.js",
+  "workers_dev": true
 }
