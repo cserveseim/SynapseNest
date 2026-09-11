@@ -3,37 +3,36 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#07101d">
-  <title>SynapseNest · Self-hosted AI workspace</title>
+  <meta name="theme-color" content="#0c0d10">
+  <title>SynapseNest</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/workspace.css">
 </head>
 <body class="workspace-page">
   <div class="shell workspace-shell">
     <aside>
-      <a class="brand" href="/"><i>✦</i> synapse<span>nest</span></a>
-      <div class="side-title">WORKSPACES <button id="newWorkspace" type="button" aria-label="New workspace">＋</button></div>
+      <a class="brand" href="/">synapsenest</a>
+      <div class="side-title">Workspaces <button id="newWorkspace" type="button" aria-label="New workspace">＋</button></div>
       <nav id="workspaceList"></nav>
       <small id="ownerState">● Owner session required</small>
     </aside>
     <main>
       <header>
         <button id="menu" type="button" aria-label="Menu">☰</button>
-        <div class="crumb">WORKSPACE <b>/</b> <strong id="crumb">Sign in</strong></div>
-        <span class="local">● SELF-HOSTED AI WORKSPACE</span>
+        <div class="crumb">workspace <b>/</b> <strong id="crumb">sign in</strong></div>
+        <span class="local">● local</span>
         <a class="quiet" href="/">Genomes</a>
         <button id="logout" class="quiet" type="button" hidden>Log out</button>
       </header>
 
       <section id="authPanel">
-        <div class="orb">✦</div>
-        <p class="eyebrow" id="authEyebrow">OWNER GATE</p>
-        <h1 id="authTitle">Unlock the workspace runtime.</h1>
-        <p id="authCopy">The first password becomes the local owner secret. It never leaves this server.</p>
+        <p class="eyebrow" id="authEyebrow">Sign in</p>
+        <h1 id="authTitle">Owner password</h1>
+        <p id="authCopy">Required for Docker workspaces, terminal, and Grok edits.</p>
         <form id="authForm">
           <label>Password <input id="password" name="password" type="password" required minlength="10" autocomplete="current-password"></label>
           <div class="actions">
-            <button class="primary" id="authSubmit" type="submit">Continue →</button>
+            <button class="primary" id="authSubmit" type="submit">Continue</button>
           </div>
         </form>
       </section>
@@ -41,16 +40,16 @@
       <section id="workspaceStudio" hidden>
         <div class="workspace-toolbar">
           <div>
-            <p class="eyebrow">AI CREATION ENVIRONMENT</p>
-            <h1 id="workspaceTitle">Static site</h1>
-            <p id="workspaceMeta">Ask Grok to build, then edit, preview, snapshot, and export — all on this VPS.</p>
+            <p class="eyebrow">Workspace</p>
+            <h1 id="workspaceTitle">static-site</h1>
+            <p id="workspaceMeta">stopped</p>
           </div>
           <div class="workspace-actions">
-            <button id="start" class="primary" type="button">Start runtime</button>
+            <button id="start" class="primary" type="button">Start</button>
             <button id="stop" class="quiet" type="button">Stop</button>
             <button id="snapshot" class="quiet" type="button">Snapshot</button>
             <button id="exportWorkspace" class="quiet" type="button">Export</button>
-            <button id="save" class="quiet" type="button">Save file</button>
+            <button id="save" class="quiet" type="button">Save</button>
           </div>
         </div>
         <div class="pane-switch" role="tablist">
@@ -74,11 +73,11 @@
             <iframe id="preview" title="Workspace preview" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"></iframe>
           </section>
           <section class="pane chat-pane" data-pane-panel="chat">
-            <p class="eyebrow">GROK · SPACEXAI</p>
+            <p class="eyebrow">Grok</p>
             <div id="chatLog"></div>
             <form id="chatForm">
               <textarea id="chatInput" maxlength="8000" placeholder="Build a landing page, restyle the colors, add a second section…"></textarea>
-              <button class="primary" id="chatSend" type="submit">Build with AI</button>
+              <button class="primary" id="chatSend" type="submit">Send</button>
             </form>
             <p id="aiStatus" class="ai-status">Checking SpaceXAI…</p>
           </section>

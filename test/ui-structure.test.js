@@ -19,9 +19,9 @@ test('dialog dismissal controls never submit create or fork forms', () => {
 });
 
 test('responsive layout includes compact-phone rules and prevents horizontal overflow', () => {
-  assert.match(css, /@media\(max-width:480px\)/);
-  assert.match(css, /overflow-x:hidden/);
-  assert.match(css, /min-width:0/);
+  assert.match(css, /@media\s*\(\s*max-width:\s*480px\s*\)/);
+  assert.match(css, /overflow-x:\s*hidden/);
+  assert.match(css, /min-width:\s*0/);
 });
 
 test('workspace IDE uses relative APIs, a sandboxed preview, and a single-pane mobile mode', () => {
@@ -33,7 +33,7 @@ test('workspace IDE uses relative APIs, a sandboxed preview, and a single-pane m
   assert.match(workspaceJs, /WebSocket/);
   assert.match(workspaceJs, /location\.host/);
   assert.doesNotMatch(workspaceJs, /new WebSocket\([`'"]ws:\/\//);
-  assert.match(workspaceCss, /@media\(max-width:800px\)/);
-  assert.match(workspaceCss, /@media\(max-width:480px\)/);
+  assert.match(workspaceCss, /@media\s*\(\s*max-width:\s*800px\s*\)/);
+  assert.match(workspaceCss, /@media\s*\(\s*max-width:\s*480px\s*\)/);
   assert.match(workspaceCss, /\.pane\.active/);
 });

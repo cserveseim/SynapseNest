@@ -28,14 +28,14 @@
     $('#authPanel').hidden = authenticated;
     $('#workspaceStudio').hidden = !authenticated;
     $('#logout').hidden = !authenticated;
-    $('#ownerState').textContent = authenticated ? '● Owner session' : body.owner ? '● Owner exists' : '● Create owner password';
-    $('#authEyebrow').textContent = body.owner ? 'OWNER LOGIN' : 'OWNER BOOTSTRAP';
-    $('#authTitle').textContent = body.owner ? 'Sign in to the runtime.' : 'Create the owner password.';
+    $('#ownerState').textContent = authenticated ? '● signed in' : body.owner ? '● locked' : '● set password';
+    $('#authEyebrow').textContent = body.owner ? 'Sign in' : 'Set password';
+    $('#authTitle').textContent = body.owner ? 'Owner password' : 'Create owner password';
     $('#authCopy').textContent = body.owner
-      ? 'This gate protects Docker workspaces, the terminal, and Git snapshots.'
-      : 'The first password becomes the local owner secret. It never leaves this server.';
-    $('#authSubmit').textContent = body.owner ? 'Sign in →' : 'Create owner →';
-    $('#crumb').textContent = authenticated ? 'Runtime' : 'Sign in';
+      ? 'Unlock workspaces, terminal, and Grok.'
+      : 'This password stays on the server.';
+    $('#authSubmit').textContent = body.owner ? 'Sign in' : 'Create';
+    $('#crumb').textContent = authenticated ? 'workspace' : 'sign in';
     if (authenticated) {
       await loadAiStatus();
       await loadWorkspaces();
@@ -47,8 +47,8 @@
     const status = $('#aiStatus');
     if (!status) return;
     status.textContent = body.configured
-      ? `SpaceXAI ready · ${body.model}`
-      : 'Set XAI_API_KEY on this VPS to enable Grok in the workspace.';
+      ? `${body.model}`
+      : 'Grok offline — no API key';
   }
 
   async function loadWorkspaces(selectId) {
