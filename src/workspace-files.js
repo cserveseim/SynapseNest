@@ -105,7 +105,7 @@ class WorkspaceFiles {
     let entries;
     try { entries = fs.readdirSync(atPath(directoryFd), { withFileTypes: true }); } catch (error) { throw fileError(error); }
     for (const entry of entries) {
-      if (entry.name.startsWith('.')) throw new WorkspaceFileError('Workspace paths may not contain dotfiles.');
+      if (entry.name.startsWith('.')) continue;
       if (entry.isSymbolicLink()) throw new WorkspaceFileError('Workspace paths may not contain symbolic links.');
       const extension = path.extname(entry.name).toLowerCase();
       if (entry.isDirectory()) {

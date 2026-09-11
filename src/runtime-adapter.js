@@ -7,6 +7,8 @@ const { randomUUID } = require('node:crypto');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RUNTIME_IMAGE = 'busybox@sha256:3c6ae8008e2c2eedd141725c30b20d9c36b026eb796688f88205845ef17aa213';
+const PREVIEW_NETWORK = 'synapsenest-preview';
+const PREVIEW_PORT = 8080;
 const CPU_LIMIT = '0.50';
 const MEMORY_LIMIT = '256m';
 const PID_LIMIT = '64';
@@ -38,6 +40,7 @@ class RuntimeAdapter {
       '--label', `synapsenest.runtime=${id}`,
       '--network', 'none',
       '--read-only',
+      '--user', `${process.getuid()}:${process.getgid()}`,
       '--cap-drop', 'ALL',
       '--security-opt', 'no-new-privileges:true',
       '--cpus', CPU_LIMIT,
@@ -45,7 +48,7 @@ class RuntimeAdapter {
       '--pids-limit', PID_LIMIT,
       // This bind mount is intentionally writable: workspace editing happens here.
       '--mount', `type=bind,src=${workspacePath},dst=/workspace`,
-      '--tmpfs', '/tmp:rw,nosuid,nodev,noexec,size=16m',
+      '--tmpfs', '/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777',
       RUNTIME_IMAGE,
       'httpd', '-f', '-p', '8080', '-h', '/workspace'
     ]);
@@ -76,6 +79,43 @@ class RuntimeAdapter {
     this.#docker(['rm', '--force', runtime.name]);
     this.runtimes.delete(runtimeId);
     return { id: runtimeId, status: 'removed' };
+  }
+
+  previewTarget(runtimeId) {
+    const runtime = this.requireRuntime(runtimeId);
+    this.ensurePreviewNetwork();
+    this.connectPreviewNetwork(runtime.name);
+    const networks = JSON.parse(this.#docker(['inspect', `--format={{json .NetworkSettings.Networks}}`, runtime.name]) || '{}');
+    const address = networks?.[PREVIEW_NETWORK]?.IPAddress;
+    if (!address) throw new RuntimeAdapterError('Preview network address is unavailable.', 503);
+    return { host: address, port: PREVIEW_PORT };
+  }
+
+  attachShell(runtimeId) {
+    const runtime = this.requireRuntime(runtimeId);
+    return childProcess.spawn('docker', ['exec', '-i', runtime.name, 'sh', '-lc', 'cd /workspace && exec sh'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { PATH: process.env.PATH, LC_ALL: 'C' }
+    });
+  }
+
+  ensurePreviewNetwork() {
+    try {
+      this.#docker(['network', 'inspect', PREVIEW_NETWORK]);
+    } catch {
+      this.#docker(['network', 'create', '--internal', '--label', 'synapsenest.preview=1', PREVIEW_NETWORK]);
+    }
+  }
+
+  connectPreviewNetwork(containerName) {
+    try {
+      this.execute(['network', 'connect', PREVIEW_NETWORK, containerName]);
+    } catch (error) {
+      const stderr = Buffer.isBuffer(error && error.stderr) ? error.stderr.toString('utf8') : String((error && error.stderr) || error && error.message || '');
+      if (!/already (exists|connected)/i.test(stderr)) {
+        throw new RuntimeAdapterError('Docker runtime operation failed.', 503);
+      }
+    }
   }
 
   workspacePath(workspaceId) {
@@ -133,4 +173,4 @@ function executeDocker(args) {
   });
 }
 
-module.exports = { RuntimeAdapter, RuntimeAdapterError, RUNTIME_IMAGE };
+module.exports = { RuntimeAdapter, RuntimeAdapterError, RUNTIME_IMAGE, PREVIEW_NETWORK, PREVIEW_PORT };

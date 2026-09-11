@@ -47,6 +47,7 @@ test('creates only a fixed, resource-bounded and isolated static-preview invocat
     assert.equal(args.includes('--network'), true);
     assert.equal(args[args.indexOf('--network') + 1], 'none');
     assert.equal(args.includes('--read-only'), true);
+    assert.deepEqual(args.slice(args.indexOf('--user'), args.indexOf('--user') + 2), ['--user', `${process.getuid()}:${process.getgid()}`]);
     assert.deepEqual(args.slice(args.indexOf('--cap-drop'), args.indexOf('--cap-drop') + 2), ['--cap-drop', 'ALL']);
     assert.deepEqual(args.slice(args.indexOf('--security-opt'), args.indexOf('--security-opt') + 2), ['--security-opt', 'no-new-privileges:true']);
     assert.deepEqual(args.slice(args.indexOf('--cpus'), args.indexOf('--cpus') + 2), ['--cpus', '0.50']);
@@ -121,6 +122,27 @@ test('reports an explicit Docker no-such-object response as runtime not found', 
     assert.throws(
       () => adapter.status('00000000-0000-4000-8000-000000000000'),
       (error) => error instanceof RuntimeAdapterError && error.statusCode === 404
+    );
+  } finally { subject.cleanup(); }
+});
+
+test('registers an internal preview target without publishing a host port', () => {
+  const subject = fixture();
+  try {
+    const runtime = subject.adapter.create(WORKSPACE_ID);
+    subject.adapter.execute = (args) => {
+      subject.calls.push(args);
+      if (args[0] === 'network' && args[1] === 'inspect') return '{"Name":"synapsenest-preview"}\n';
+      if (args[0] === 'network' && args[1] === 'connect') return '\n';
+      if (args[0] === 'inspect' && String(args[1]).includes('Networks')) {
+        return JSON.stringify({ 'synapsenest-preview': { IPAddress: '172.18.0.8' } });
+      }
+      return 'container-id\n';
+    };
+    assert.deepEqual(subject.adapter.previewTarget(runtime.id), { host: '172.18.0.8', port: 8080 });
+    assert.equal(
+      subject.calls.some((args) => args[0] === 'create' && args.slice(0, args.indexOf(RUNTIME_IMAGE)).some((argument) => argument === '-p' || argument === '--publish' || argument.startsWith('--publish='))),
+      false
     );
   } finally { subject.cleanup(); }
 });

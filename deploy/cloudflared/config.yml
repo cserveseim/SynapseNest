@@ -1,0 +1,9 @@
+# Placeholder Cloudflare Tunnel config. Replace YOUR_TUNNEL_ID and the
+# credentials path after `cloudflared tunnel create synapsenest`.
+tunnel: YOUR_TUNNEL_ID
+credentials-file: /etc/cloudflared/YOUR_TUNNEL_ID.json
+
+ingress:
+  - hostname: synapsenest.eim-agent.com
+    service: http://127.0.0.1:3000
+  - service: http_status:404

@@ -1,0 +1,6 @@
+{
+  "name": "synapsenest-edge",
+  "account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
+  "compatibility_date": "2026-09-10",
+  "workers_dev": false
+}

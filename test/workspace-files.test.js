@@ -20,6 +20,16 @@ function fixture() {
   };
 }
 
+test('skips git metadata when listing workspace files', () => {
+  const subject = fixture();
+  try {
+    fs.mkdirSync(path.join(subject.directory, subject.workspaceId, '.git'));
+    fs.writeFileSync(path.join(subject.directory, subject.workspaceId, '.git', 'config'), 'secret');
+    subject.files.writeFile(subject.workspaceId, 'index.html', '<h1>ok</h1>\n');
+    assert.deepEqual(subject.files.listFiles(subject.workspaceId), [{ path: 'index.html', size: 12 }]);
+  } finally { subject.cleanup(); }
+});
+
 test('lists, reads, and writes allowlisted text files inside a workspace', () => {
   const subject = fixture();
   try {

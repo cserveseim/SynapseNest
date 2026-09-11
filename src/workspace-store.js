@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const TEMPLATE_RECIPES = Object.freeze({
   'static-site': Object.freeze({ id: 'static-site', runtime: 'static-preview' })
 });
@@ -77,6 +79,17 @@ class WorkspaceStore {
     return publicWorkspace(workspace);
   }
 
+  setRuntimeId(workspaceId, runtimeId) {
+    if (typeof runtimeId !== 'string' || !UUID_PATTERN.test(runtimeId)) {
+      throw new WorkspaceStoreError('Runtime ID is invalid.');
+    }
+    const workspace = this.requireWorkspace(workspaceId);
+    workspace.runtimeId = runtimeId;
+    workspace.updatedAt = new Date().toISOString();
+    this.persist();
+    return publicWorkspace(workspace);
+  }
+
   transitionWorkspace(workspaceId, nextStatus) {
     const workspace = this.requireWorkspace(workspaceId);
     if (typeof nextStatus !== 'string' || !Object.hasOwn(TRANSITIONS, nextStatus)) {
@@ -117,6 +130,7 @@ function publicWorkspace(workspace) {
     recipe: workspace.recipe,
     selectedBranch: workspace.selectedBranch,
     selectedSynapseId: workspace.selectedSynapseId,
+    runtimeId: workspace.runtimeId || '',
     createdAt: workspace.createdAt,
     updatedAt: workspace.updatedAt
   }));

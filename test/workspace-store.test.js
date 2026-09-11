@@ -35,6 +35,7 @@ test('creates a persistent workspace with public metadata and UUID', () => {
     assert.match(workspace.createdAt, /^\d{4}-\d{2}-\d{2}T/);
     assert.equal(workspace.updatedAt, workspace.createdAt);
     assert.equal(Object.hasOwn(workspace, 'rootPath'), false);
+    assert.equal(workspace.runtimeId, '');
 
     const reloaded = new WorkspaceStore(path.join(subject.directory, 'workspaces.json'));
     assert.deepEqual(reloaded.getWorkspace(workspace.id), workspace);
@@ -65,5 +66,17 @@ test('only permits explicit workspace lifecycle transitions', () => {
       () => subject.store.transitionWorkspace(workspace.id, 'running'),
       (error) => error instanceof WorkspaceStoreError && /cannot transition/i.test(error.message)
     );
+  } finally { subject.cleanup(); }
+});
+
+test('persists a generated runtime ID without exposing filesystem paths', () => {
+  const subject = fixture();
+  try {
+    const workspace = subject.store.createWorkspace({ templateId: 'static-site' });
+    const runtimeId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const updated = subject.store.setRuntimeId(workspace.id, runtimeId);
+    assert.equal(updated.runtimeId, runtimeId);
+    assert.equal(Object.hasOwn(updated, 'rootPath'), false);
+    assert.throws(() => subject.store.setRuntimeId(workspace.id, '../escape'), WorkspaceStoreError);
   } finally { subject.cleanup(); }
 });

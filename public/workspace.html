@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#07101d">
+  <title>SynapseNest · Workspace</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/workspace.css">
+</head>
+<body class="workspace-page">
+  <div class="shell workspace-shell">
+    <aside>
+      <a class="brand" href="/"><i>✦</i> synapse<span>nest</span></a>
+      <div class="side-title">WORKSPACES <button id="newWorkspace" type="button" aria-label="New workspace">＋</button></div>
+      <nav id="workspaceList"></nav>
+      <small id="ownerState">● Owner session required</small>
+    </aside>
+    <main>
+      <header>
+        <button id="menu" type="button" aria-label="Menu">☰</button>
+        <div class="crumb">WORKSPACE <b>/</b> <strong id="crumb">Sign in</strong></div>
+        <span class="local">● SELF-HOSTED RUNTIME</span>
+        <a class="quiet" href="/">Genomes</a>
+        <button id="logout" class="quiet" type="button" hidden>Log out</button>
+      </header>
+
+      <section id="authPanel">
+        <div class="orb">✦</div>
+        <p class="eyebrow" id="authEyebrow">OWNER GATE</p>
+        <h1 id="authTitle">Unlock the workspace runtime.</h1>
+        <p id="authCopy">The first password becomes the local owner secret. It never leaves this server.</p>
+        <form id="authForm">
+          <label>Password <input id="password" name="password" type="password" required minlength="10" autocomplete="current-password"></label>
+          <div class="actions">
+            <button class="primary" id="authSubmit" type="submit">Continue →</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="workspaceStudio" hidden>
+        <div class="workspace-toolbar">
+          <div>
+            <p class="eyebrow">DOCKER WORKSPACE</p>
+            <h1 id="workspaceTitle">Static site</h1>
+            <p id="workspaceMeta">Create a workspace to open files, a terminal, and a live preview.</p>
+          </div>
+          <div class="workspace-actions">
+            <button id="start" class="primary" type="button">Start runtime</button>
+            <button id="stop" class="quiet" type="button">Stop</button>
+            <button id="snapshot" class="quiet" type="button">Snapshot</button>
+            <button id="exportWorkspace" class="quiet" type="button">Export</button>
+            <button id="save" class="quiet" type="button">Save file</button>
+          </div>
+        </div>
+        <div class="pane-switch" role="tablist">
+          <button type="button" data-pane="files" class="active">Files</button>
+          <button type="button" data-pane="editor">Editor</button>
+          <button type="button" data-pane="preview">Preview</button>
+          <button type="button" data-pane="terminal">Terminal</button>
+        </div>
+        <div class="workspace-grid">
+          <section class="pane files-pane" data-pane-panel="files">
+            <p class="eyebrow">FILES</p>
+            <div id="fileTree"></div>
+          </section>
+          <section class="pane editor-pane" data-pane-panel="editor">
+            <p class="eyebrow" id="editorLabel">EDITOR</p>
+            <textarea id="editor" spellcheck="false"></textarea>
+          </section>
+          <section class="pane preview-pane" data-pane-panel="preview">
+            <p class="eyebrow">PREVIEW</p>
+            <iframe id="preview" title="Workspace preview" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"></iframe>
+          </section>
+          <section class="pane terminal-pane" data-pane-panel="terminal">
+            <p class="eyebrow">TERMINAL</p>
+            <pre id="terminal"></pre>
+            <input id="terminalInput" type="text" autocomplete="off" spellcheck="false" placeholder="Command, then Enter">
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="toast"></div>
+  <script src="/workspace.js" defer></script>
+</body>
+</html>

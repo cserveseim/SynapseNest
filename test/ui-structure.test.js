@@ -8,6 +8,9 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'public', 'styles.css'), 'utf8');
+const workspaceHtml = fs.readFileSync(path.join(root, 'public', 'workspace.html'), 'utf8');
+const workspaceCss = fs.readFileSync(path.join(root, 'public', 'workspace.css'), 'utf8');
+const workspaceJs = fs.readFileSync(path.join(root, 'public', 'workspace.js'), 'utf8');
 
 test('dialog dismissal controls never submit create or fork forms', () => {
   const dismissalButtons = html.match(/<button[^>]*class="close"[^>]*>×<\/button>|<button[^>]*class="quiet"[^>]*>Cancel<\/button>/g) || [];
@@ -19,4 +22,16 @@ test('responsive layout includes compact-phone rules and prevents horizontal ove
   assert.match(css, /@media\(max-width:480px\)/);
   assert.match(css, /overflow-x:hidden/);
   assert.match(css, /min-width:0/);
+});
+
+test('workspace IDE uses relative APIs, a sandboxed preview, and a single-pane mobile mode', () => {
+  assert.match(workspaceHtml, /sandbox="allow-scripts allow-forms"/);
+  assert.doesNotMatch(workspaceHtml, /allow-same-origin|allow-top-navigation|allow-popups/);
+  assert.match(workspaceJs, /\/api\/workspaces\/\$\{workspaceId\}\/terminal/);
+  assert.match(workspaceJs, /WebSocket/);
+  assert.match(workspaceJs, /location\.host/);
+  assert.doesNotMatch(workspaceJs, /new WebSocket\([`'"]ws:\/\//);
+  assert.match(workspaceCss, /@media\(max-width:800px\)/);
+  assert.match(workspaceCss, /@media\(max-width:480px\)/);
+  assert.match(workspaceCss, /\.pane\.active/);
 });

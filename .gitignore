@@ -2,8 +2,11 @@
 node_modules/
 .wrangler/
 
-# Local Project Genome persistence
+# Local Project Genome persistence and workspace runtimes
 data/*.json
+data/*.txt
+data/workspaces/
+data/exports/
 
 # Runtime output
 *.log

@@ -1,10 +1,30 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const http = require('node:http');
+const os = require('node:os');
+const path = require('node:path');
 const test = require('node:test');
 
-const { server } = require('../src/server');
+const { createApp } = require('../src/server');
+
+const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'synapsenest-server-'));
+const { server } = createApp({
+  dataFile: path.join(directory, 'project-genomes.json'),
+  workspaceDataFile: path.join(directory, 'workspaces.json'),
+  workspacesRoot: path.join(directory, 'workspaces'),
+  exportsRoot: path.join(directory, 'exports'),
+  authFile: path.join(directory, 'auth.json'),
+  runtimeAdapter: {
+    create() { return { id: '00000000-0000-4000-8000-000000000001', status: 'created' }; },
+    start(id) { return { id, status: 'running' }; },
+    stop(id) { return { id, status: 'stopped' }; },
+    status(id) { return { id, status: 'running' }; },
+    previewTarget() { return { host: '127.0.0.1', port: 9 }; },
+    attachShell() { throw new Error('terminal is not used in genome tests'); }
+  }
+});
 
 let origin;
 
@@ -16,6 +36,7 @@ test.before(async () => {
 
 test.after(async () => {
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  fs.rmSync(directory, { recursive: true, force: true });
 });
 
 test('creates, forks, selects, publishes, and exports a Project Genome', async () => {
