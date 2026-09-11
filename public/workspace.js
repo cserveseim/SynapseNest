@@ -1,6 +1,6 @@
 (() => {
   const $ = (selector) => document.querySelector(selector);
-  const state = { csrfToken: '', workspaces: [], workspace: null, files: [], path: '', socket: null, pane: 'files' };
+  const state = { csrfToken: '', workspaces: [], workspace: null, files: [], path: '', socket: null, pane: 'chat', pip: { x: null, y: null } };
   const flash = (message, isError = false) => {
     const toast = $('#toast');
     toast.textContent = message;
@@ -46,9 +46,7 @@
     const { body } = await request('/api/ai/status');
     const status = $('#aiStatus');
     if (!status) return;
-    status.textContent = body.configured
-      ? `${body.model}`
-      : 'Grok offline — no API key';
+    status.textContent = body.configured ? `${body.model}` : 'Grok offline — no API key';
   }
 
   async function loadWorkspaces(selectId) {
@@ -61,20 +59,33 @@
     if (selected) await openWorkspace(selected);
   }
 
+  function setPreview(running, workspaceId) {
+    const pip = $('#previewPip');
+    const frame = $('#preview');
+    if (running) {
+      pip.hidden = false;
+      frame.src = `/api/workspaces/${workspaceId}/preview/`;
+    } else {
+      pip.hidden = true;
+      pip.classList.remove('expanded', 'minimized');
+      frame.removeAttribute('src');
+    }
+  }
+
   async function openWorkspace(workspaceId) {
     const { body } = await request(`/api/workspaces/${workspaceId}`);
     state.workspace = body.workspace;
     $('#crumb').textContent = state.workspace.templateId;
     $('#workspaceTitle').textContent = state.workspace.templateId;
-    $('#workspaceMeta').textContent = `${state.workspace.status} · branch ${state.workspace.selectedBranch} · ${state.workspace.recipe.runtime}`;
+    $('#workspaceMeta').textContent = `${state.workspace.status} · ${state.workspace.selectedBranch}`;
     const { body: filesBody } = await request(`/api/workspaces/${workspaceId}/files`);
     state.files = filesBody.files || [];
     renderFiles();
     if (state.workspace.status === 'running') {
-      $('#preview').src = `/api/workspaces/${workspaceId}/preview/`;
+      setPreview(true, workspaceId);
       connectTerminal(workspaceId);
     } else {
-      $('#preview').removeAttribute('src');
+      setPreview(false);
       disconnectTerminal();
     }
   }
@@ -98,6 +109,7 @@
     state.pane = name;
     document.querySelectorAll('.pane-switch button').forEach((button) => button.classList.toggle('active', button.dataset.pane === name));
     document.querySelectorAll('[data-pane-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.panePanel === name));
+    if (name === 'files') $('aside').classList.add('open');
   }
 
   function disconnectTerminal() {
@@ -123,6 +135,37 @@
     });
   }
 
+  function bindPip() {
+    const pip = $('#previewPip');
+    const bar = $('#pipBar');
+    let drag = null;
+    bar.addEventListener('pointerdown', (event) => {
+      if (event.target.closest('button') || pip.classList.contains('expanded')) return;
+      const rect = pip.getBoundingClientRect();
+      drag = { dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+      bar.setPointerCapture(event.pointerId);
+    });
+    bar.addEventListener('pointermove', (event) => {
+      if (!drag) return;
+      const stage = $('.workspace-stage').getBoundingClientRect();
+      const x = Math.min(Math.max(event.clientX - drag.dx - stage.left, 8), stage.width - pip.offsetWidth - 8);
+      const y = Math.min(Math.max(event.clientY - drag.dy - stage.top, 8), stage.height - pip.offsetHeight - 8);
+      pip.style.left = `${x}px`;
+      pip.style.top = `${y}px`;
+      pip.style.right = 'auto';
+      pip.style.bottom = 'auto';
+    });
+    bar.addEventListener('pointerup', () => { drag = null; });
+    $('#pipMin').addEventListener('click', () => {
+      pip.classList.toggle('minimized');
+      pip.classList.remove('expanded');
+    });
+    $('#pipExpand').addEventListener('click', () => {
+      pip.classList.toggle('expanded');
+      pip.classList.remove('minimized');
+    });
+  }
+
   const guard = (fn) => async (event) => {
     try { await fn(event); } catch (error) { console.error(error); flash(error.message || 'Request failed.', true); }
   };
@@ -139,7 +182,7 @@
 
   $('#newWorkspace').addEventListener('click', guard(async () => {
     const { body } = await request('/api/workspaces', { method: 'POST', body: JSON.stringify({ templateId: 'static-site' }) });
-    flash('Workspace created from the static starter.');
+    flash('Workspace created.');
     await loadWorkspaces(body.workspace.id);
   }));
 
@@ -201,6 +244,13 @@
     }
   }));
 
+  $('#chips').addEventListener('click', (event) => {
+    const chip = event.target.closest('[data-chip]');
+    if (!chip) return;
+    $('#chatInput').value = chip.dataset.chip;
+    $('#chatInput').focus();
+  });
+
   $('#logout').addEventListener('click', guard(async () => {
     await request('/api/auth/logout', { method: 'POST', body: '{}' });
     disconnectTerminal();
@@ -224,6 +274,23 @@
     event.currentTarget.value = '';
   });
 
-  showPane('files');
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredPrompt = event;
+    $('#installApp').hidden = false;
+  });
+  $('#installApp').addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    $('#installApp').hidden = true;
+  });
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+  bindPip();
+  showPane('chat');
   loadSession().catch((error) => flash(error.message, true));
 })();
