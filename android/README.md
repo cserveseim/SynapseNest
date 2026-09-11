@@ -1,12 +1,19 @@
 # SynapseNest Android app
 
-The product is a PWA at `/workspace`. Chrome can install it as an Android app.
+PWA: Chrome → Install app.
 
-To build a signed APK / TWA from this folder:
+Sideload APK (Trusted Web Activity wrapping the live workspace):
+
+https://synapsenest-edge.core-ao.workers.dev/downloads/synapsenest.apk
+
+Package `com.synapsenest.app`. Enable **Install unknown apps** for your browser.
+
+Rebuild:
 
 ```bash
-npx @bubblewrap/cli init --manifest https://synapsenest-edge.core-ao.workers.dev/manifest.webmanifest
-npx @bubblewrap/cli build
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export ANDROID_SDK_ROOT=/opt/android-sdk
+cd android/twa
+/tmp/gradle-8.4/bin/gradle assembleRelease --no-daemon
+cp app/build/outputs/apk/release/app-release.apk ../../public/downloads/synapsenest.apk
 ```
-
-The generated APK lands in `android/app/build/outputs/apk/`.

@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.synapsenest.app",
+      "sha256_cert_fingerprints": [
+        "88:36:0F:2A:E6:BB:87:97:31:53:43:22:FA:72:DA:27:40:87:D1:2C:F4:C9:45:A2:45:3E:47:F3:F8:0F:25:9F"
+      ]
+    }
+  }
+]

@@ -8,6 +8,12 @@ data/*.txt
 data/workspaces/
 data/exports/
 .env
+android/twa/local.properties
+android/twa/keystore.properties
+android/twa/*.keystore
+android/twa/.gradle/
+android/twa/app/build/
+android/twa/build/
 
 # Runtime output
 *.log
