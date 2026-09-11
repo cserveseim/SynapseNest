@@ -20,8 +20,9 @@ npm start
 The AI workspace is at [http://127.0.0.1:3000/workspace](http://127.0.0.1:3000/workspace).
 The genome studio is at [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
-Copy `.env.example` to `.env` and set `XAI_API_KEY` so Grok can edit workspace
-files. The key stays on the server.
+Copy `.env.example` to `.env` and set `XAI_API_KEY`, or leave it empty to use
+the logged-in Grok CLI token in `~/.grok/auth.json` (needs `api:access`).
+The credential stays on the server.
 
 On this VPS a single systemd unit `synapsenest.service` should own port 3000.
 Do not start a second `node src/server.js` process.

@@ -9,7 +9,7 @@ const { WorkspaceFiles, WorkspaceFileError } = require('./workspace-files');
 const { GitService, GitServiceError } = require('./git-service');
 const { RuntimeAdapter, RuntimeAdapterError } = require('./runtime-adapter');
 const { AuthStore, AuthStoreError } = require('./auth-store');
-const { AiStudio, AiStudioError } = require('./ai-studio');
+const { AiStudio, AiStudioError, loadGrokCliToken } = require('./ai-studio');
 const { isWebSocketUpgrade, accept } = require('./websocket');
 
 const ROOT_DIR = path.join(__dirname, '..');
@@ -51,7 +51,9 @@ function createApp(options = {}) {
   const cookieSecure = options.cookieSecure ?? process.env.SYNAPSENEST_SECURE_COOKIES === '1';
   const fetchImpl = options.fetch || globalThis.fetch;
   const ai = options.aiStudio || new AiStudio({
-    apiKey: options.aiApiKey ?? process.env.XAI_API_KEY ?? '',
+    apiKey: options.aiApiKey !== undefined
+      ? options.aiApiKey
+      : (process.env.XAI_API_KEY || (options.skipGrokAuth ? '' : loadGrokCliToken())),
     model: options.aiModel || process.env.XAI_MODEL,
     fetchImpl: options.aiFetch || fetchImpl
   });

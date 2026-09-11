@@ -25,6 +25,7 @@ function fixture() {
 async function startApp(directory, previewPort, extra = {}) {
   const { server } = createApp({
     skipEnvFile: true,
+    skipGrokAuth: true,
     rootDir: path.join(__dirname, '..'),
     dataFile: path.join(directory, 'genomes.json'),
     workspaceDataFile: path.join(directory, 'workspaces.json'),

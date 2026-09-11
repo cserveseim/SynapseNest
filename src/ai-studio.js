@@ -1,5 +1,9 @@
 'use strict';
 
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
 const DEFAULT_MODEL = 'grok-4.6';
 const DEFAULT_BASE_URL = 'https://api.x.ai/v1';
 const MAX_PROMPT = 8_000;
@@ -17,7 +21,7 @@ class AiStudioError extends Error {
 
 class AiStudio {
   constructor({ apiKey = '', model = DEFAULT_MODEL, baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.fetch } = {}) {
-    this.apiKey = apiKey;
+    this.apiKey = apiKey || '';
     this.model = model || DEFAULT_MODEL;
     this.baseUrl = String(baseUrl || DEFAULT_BASE_URL).replace(/\/$/, '');
     this.fetchImpl = fetchImpl;
@@ -132,4 +136,15 @@ function normalizeFile(file) {
   return { path: file.path, content: file.content };
 }
 
-module.exports = { AiStudio, AiStudioError, DEFAULT_MODEL, MAX_PROMPT, MAX_FILES };
+function loadGrokCliToken(authFile = path.join(os.homedir(), '.grok', 'auth.json')) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(authFile, 'utf8'));
+    const entries = parsed && typeof parsed === 'object' ? Object.values(parsed) : [];
+    const entry = entries.find((value) => value && typeof value === 'object' && typeof value.key === 'string' && value.key.length > 20);
+    return entry ? entry.key : '';
+  } catch {
+    return '';
+  }
+}
+
+module.exports = { AiStudio, AiStudioError, DEFAULT_MODEL, MAX_PROMPT, MAX_FILES, loadGrokCliToken };
