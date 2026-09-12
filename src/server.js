@@ -11,6 +11,7 @@ const { RuntimeAdapter, RuntimeAdapterError } = require('./runtime-adapter');
 const { AuthStore, AuthStoreError } = require('./auth-store');
 const { AiStudio, AiStudioError, loadGrokCliToken } = require('./ai-studio');
 const { isWebSocketUpgrade, accept } = require('./websocket');
+const { validateContract, ContractError } = require('./contract');
 
 const ROOT_DIR = path.join(__dirname, '..');
 const BODY_LIMIT = 100_000;
@@ -82,6 +83,7 @@ function createApp(options = {}) {
       if (url.pathname === '/api/auth/bootstrap' && method === 'POST') return await handleBootstrap(request, response);
       if (url.pathname === '/api/auth/login' && method === 'POST') return await handleLogin(request, response);
       if (url.pathname === '/api/auth/logout' && method === 'POST') return await handleLogout(request, response);
+      if (url.pathname === '/api/contracts/accept' && method === 'POST') return await handleContractAccept(request, response);
 
       if (url.pathname === '/api/projects' && method === 'GET') return sendJson(response, 200, { projects: store.listProjects() });
       if (url.pathname === '/api/projects' && method === 'POST') return sendJson(response, 201, { project: store.createProject(await readJson(request)) });
@@ -162,6 +164,61 @@ function createApp(options = {}) {
       return response.end(`${JSON.stringify(payload, null, 2)}\n`);
     }
     return sendJson(response, 405, { error: 'Method not allowed.' });
+  }
+
+
+  async function handleContractAccept(request, response) {
+    const session = requireSession(request);
+    auth.assertCsrf(session, request.headers['x-csrf-token']);
+    const body = await readJson(request);
+    const contract = validateContract(body.contract || body);
+    let genomeId = contract.lineage.genomeId;
+    let synapseId = contract.lineage.synapseId;
+    let project;
+    if (genomeId) {
+      project = store.getProject(genomeId);
+    } else {
+      project = store.createProject({
+        title: contract.lineage.title,
+        description: contract.lineage.description || contract.identity.mission,
+        template: contract.recipe.templateId === 'static-site' ? 'Creator site' : contract.recipe.templateId
+      });
+      genomeId = project.id;
+      synapseId = project.winnerId;
+    }
+    if (!synapseId) synapseId = project.winnerId;
+    const proofPath = contract.lineage.proofPath || `/proof/${genomeId}/${synapseId}`;
+    const workspace = workspaceStore.createWorkspace({
+      templateId: contract.recipe.nestTemplateId || 'static-site',
+      selectedSynapseId: synapseId,
+      contractId: contract.id,
+      contractRev: contract.rev,
+      contract,
+      backupR2Key: contract.backup.r2Key,
+      proofPath,
+      recipe: {
+        id: contract.recipe.templateId,
+        runtime: contract.recipe.runtime,
+        limits: contract.limits,
+        policy: contract.policy
+      }
+    });
+    gitService.createStarter(workspace.id);
+    // stub runtime: do not start docker; identity sealed without matter
+    if (contract.recipe.runtime !== 'stub') {
+      try { startWorkspace(workspace.id); } catch { /* best-effort */ }
+    }
+    // stamp proofPath back onto stored workspace via recreate fields already set
+    return sendJson(response, 201, {
+      contractId: contract.id,
+      contractRev: contract.rev,
+      genomeId,
+      synapseId,
+      workspaceId: workspace.id,
+      proofPath,
+      runtime: contract.recipe.runtime,
+      promoteToContinuum: contract.policy.promoteToContinuum
+    });
   }
 
   async function handleWorkspaceRoute(request, response, method, url, workspaceId, action, rest) {
@@ -358,6 +415,7 @@ function createApp(options = {}) {
       || error instanceof RuntimeAdapterError
       || error instanceof AuthStoreError
       || error instanceof AiStudioError
+      || error instanceof ContractError
       || error.statusCode
     ) {
       return sendJson(response, error.statusCode || 400, { error: error.message });

@@ -68,9 +68,14 @@ class WorkspaceStore {
       id: randomUUID(),
       status: 'created',
       templateId,
-      recipe: { ...TEMPLATE_RECIPES[templateId] },
+      recipe: { ...TEMPLATE_RECIPES[templateId], ...(input.recipe && typeof input.recipe === 'object' ? input.recipe : {}) },
       selectedBranch: optionalText(input.selectedBranch, 'selectedBranch', 120) || 'main',
       selectedSynapseId: optionalText(input.selectedSynapseId, 'selectedSynapseId', 120),
+      contractId: optionalText(input.contractId, 'contractId', 120),
+      contractRev: Number.isInteger(Number(input.contractRev)) ? Number(input.contractRev) : 0,
+      contract: input.contract && typeof input.contract === 'object' ? input.contract : null,
+      backupR2Key: optionalText(input.backupR2Key, 'backupR2Key', 400),
+      proofPath: optionalText(input.proofPath, 'proofPath', 300),
       createdAt: now,
       updatedAt: now
     };
@@ -131,6 +136,11 @@ function publicWorkspace(workspace) {
     selectedBranch: workspace.selectedBranch,
     selectedSynapseId: workspace.selectedSynapseId,
     runtimeId: workspace.runtimeId || '',
+    contractId: workspace.contractId || '',
+    contractRev: workspace.contractRev || 0,
+    contract: workspace.contract || null,
+    backupR2Key: workspace.backupR2Key || '',
+    proofPath: workspace.proofPath || '',
     createdAt: workspace.createdAt,
     updatedAt: workspace.updatedAt
   }));
