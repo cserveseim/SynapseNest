@@ -21,3 +21,10 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local operational backups / secrets — never committed
+*.bak-*
+deploy/.env.prod
+deploy/.env.prod.bak-*
+deploy/docker-compose.prod.yml.bak-*
+public/downloads/*.apk.bak-*

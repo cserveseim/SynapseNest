@@ -1,26 +1,46 @@
 (() => {
   const parts = location.pathname.split('/').filter(Boolean);
-  const [_, encodedProjectId, encodedSynapseId] = parts;
-  const set = (selector, value) => { document.querySelector(selector).textContent = value; };
+  const [root, encodedProjectId, encodedSynapseId] = parts;
+  const set = (selector, value) => {
+    const el = document.querySelector(selector);
+    if (el) el.textContent = value || '';
+  };
 
-  if (_ !== 'proof' || !encodedProjectId || !encodedSynapseId) return showError('This proof link is incomplete.');
-  fetch(`/api/projects/${encodedProjectId}`)
+  if (root !== 'proof' || !encodedProjectId || !encodedSynapseId) {
+    return showError('This proof link is incomplete.');
+  }
+
+  const projectId = decodeURIComponent(encodedProjectId);
+  const synapseId = decodeURIComponent(encodedSynapseId);
+
+  fetch(`/api/proof/${encodeURIComponent(projectId)}/${encodeURIComponent(synapseId)}`)
     .then(async (response) => {
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'This Project Genome is unavailable.');
-      return payload.project;
+      if (!response.ok) throw new Error(payload.error || 'This proof is unavailable.');
+      return payload;
     })
-    .then((project) => {
-      const synapseId = decodeURIComponent(encodedSynapseId);
-      const publication = project.publications.find((item) => item.synapseId === synapseId);
-      const synapse = project.synapses.find((item) => item.id === synapseId);
-      if (!publication || !synapse) throw new Error('This synapse has not been published.');
-      set('#proofTitle', project.title);
-      set('#proofDescription', project.description || 'A published Project Genome.');
-      set('#synapseName', synapse.name);
-      set('#synapseNote', synapse.note || 'No experiment note was recorded.');
-      set('#projectName', project.title);
-      set('#publishedAt', new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(publication.publishedAt)));
+    .then((proof) => {
+      set('#proofTitle', proof.title || 'Sealed identity');
+      set(
+        '#proofDescription',
+        proof.mission
+          ? 'Identity travels. Hardware follows.'
+          : 'A published Project Genome.',
+      );
+      set('#missionText', proof.mission || proof.description || 'No mission recorded.');
+      set('#contractId', proof.contractId || '—');
+      set('#guardianFp', proof.guardianFp || '—');
+      set('#projectName', proof.projectId || projectId);
+      set('#synapseName', proof.synapseName || proof.synapseId || synapseId);
+      set('#runtimeText', proof.runtime || 'unknown');
+      set(
+        '#hardwareNote',
+        proof.runtime === 'stub'
+          ? 'Hardware deferred — identity sealed'
+          : proof.publishedAt
+            ? `Published ${proof.publishedAt}`
+            : '',
+      );
       document.querySelector('#proofCard').hidden = false;
     })
     .catch((error) => showError(error.message));

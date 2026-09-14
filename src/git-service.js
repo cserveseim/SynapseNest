@@ -5,11 +5,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { MAX_TEXT_BYTES, TEXT_EXTENSIONS } = require('./workspace-files');
+const { TEMPLATE_RECIPES } = require('./workspace-store');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const BRANCH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/;
 const ARCHIVE_FORMATS = new Set(['tar', 'zip']);
-const TEMPLATE_ID = 'static-site';
 
 class GitServiceError extends Error {
   constructor(message, statusCode = 400) {
@@ -28,16 +28,17 @@ class GitService {
     this.templatesRoot = path.resolve(templatesRoot);
   }
 
-  createStarter(workspaceId) {
+  createStarter(workspaceId, templateId = 'static-site') {
+    const resolvedTemplate = resolveTemplateId(templateId);
     const workspacePath = this.workspacePath(workspaceId);
     assertEmptyDirectory(workspacePath, 'Workspace root');
-    copyReviewedTemplate(path.join(this.templatesRoot, TEMPLATE_ID), workspacePath);
+    copyReviewedTemplate(path.join(this.templatesRoot, resolvedTemplate), workspacePath);
     this.#runGit(workspacePath, ['init', '--initial-branch=main']);
     this.#runGit(workspacePath, ['config', 'user.name', 'SynapseNest']);
     this.#runGit(workspacePath, ['config', 'user.email', 'workspace@synapsenest.local']);
     this.#runGit(workspacePath, ['add', '--all']);
-    this.#runGit(workspacePath, ['commit', '--message', 'Create SynapseNest static starter']);
-    return { branch: 'main', commit: this.#runGit(workspacePath, ['rev-parse', 'HEAD']) };
+    this.#runGit(workspacePath, ['commit', '--message', `Create SynapseNest ${resolvedTemplate} starter`]);
+    return { branch: 'main', commit: this.#runGit(workspacePath, ['rev-parse', 'HEAD']), templateId: resolvedTemplate };
   }
 
   createSnapshot(workspaceId, branch) {
@@ -95,10 +96,19 @@ class GitService {
   }
 }
 
+
+function resolveTemplateId(templateId) {
+  if (typeof templateId !== 'string' || !Object.hasOwn(TEMPLATE_RECIPES, templateId)) {
+    throw new GitServiceError(`templateId must be one of: ${Object.keys(TEMPLATE_RECIPES).join(', ')}.`);
+  }
+  return templateId;
+}
+
 function copyReviewedTemplate(templatePath, destinationPath) {
   assertTemplateDirectory(templatePath);
   for (const entry of fs.readdirSync(templatePath, { withFileTypes: true })) {
     if (entry.name.startsWith('.')) throw new GitServiceError('Template contains an unsafe path.');
+    if (entry.name === 'synapsenest.yaml') continue; // Nest recipe metadata — not workspace content
     const sourcePath = path.join(templatePath, entry.name);
     const destination = path.join(destinationPath, entry.name);
     if (entry.isDirectory()) {

@@ -39,7 +39,7 @@ studio routes stay available for local lineage work.
 - Workspace HTTP only accepts workspace IDs and safe relative text paths.
   Absolute paths, traversal, symlinks, dotfiles, binaries, host URLs, and raw
   Docker arguments are rejected.
-- The runtime adapter starts one reviewed BusyBox image with `--network none`,
+- The runtime adapter starts a reviewed profile image (BusyBox, Node 22, or Python 3.12) with `--network none`,
   `--read-only`, dropped capabilities, CPU/memory/PID limits, and no published
   ports. Preview traffic uses an internal Docker network and a server-side
   proxy to a registered container address.
@@ -78,7 +78,7 @@ Workspace (owner session + CSRF on mutating requests):
 
 - `POST /api/auth/bootstrap` / `POST /api/auth/login` / `POST /api/auth/logout`
 - `GET /api/workspaces` — list workspaces
-- `POST /api/workspaces` — create a static-site workspace
+- `POST /api/workspaces` — create a workspace (`templateId`: `static-site` | `node-api` | `python-api`)
 - `POST /api/workspaces/:id/start` — start the Docker runtime
 - `POST /api/workspaces/:id/stop` — stop the Docker runtime
 - `GET /api/workspaces/:id/files` and `GET|PUT /api/workspaces/:id/file`
@@ -88,6 +88,16 @@ Workspace (owner session + CSRF on mutating requests):
 - `POST /api/workspaces/:id/ai` — SpaceXAI turn; writes only through confined files
 - `GET /api/ai/status` — whether SpaceXAI is configured
 - `GET /api/workspaces/:id/terminal` — WebSocket terminal relay
+
+## Workspace runtimes
+
+Allowlisted Docker profiles live in `src/runtime-adapter.js` (`RUNTIME_PROFILES`).
+See [docs/runtime-images.md](docs/runtime-images.md) for pinned digests and host
+`docker pull` commands. Templates:
+
+- `static-site` → BusyBox `httpd` static preview
+- `node-api` → `node:22-alpine` running `/workspace/server.js`
+- `python-api` → `python:3.12-alpine` running `/workspace/app.py`
 
 ## Production templates
 
@@ -110,7 +120,7 @@ zone DNS write access is available. Do not open port 3000 on the firewall.
 
 1. Visit the genome studio, create a project, fork a synapse, select a winner,
    publish, and export.
-2. Open `/workspace`, create the owner password, and create a static-site
+2. Open `/workspace`, create the owner password, and create a workspace template
    workspace.
 3. Edit a file, start the runtime, confirm the preview iframe, type a command
    in the terminal, take a Git snapshot, and export the archive.

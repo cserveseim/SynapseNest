@@ -1,0 +1,20 @@
+:root {
+  color: #f4f0e5;
+  background: #12151c;
+  font-family: system-ui, sans-serif;
+}
+body { margin: 0; }
+main { max-width: 56rem; margin: 8vh auto; padding: 1.5rem; }
+.eyebrow { color: #f09c72; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; }
+h1 { font-size: clamp(2rem, 4vw, 3rem); margin: 0.3rem 0 0.8rem; letter-spacing: -0.03em; }
+.bio { max-width: 34rem; color: #c9c3b4; }
+.grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin: 2rem 0; }
+.grid article {
+  border: 1px solid #2c3342; border-radius: 1.1rem; padding: 1.1rem; background: linear-gradient(160deg, #1a2030, #12151c);
+  cursor: pointer; min-height: 9rem;
+}
+.grid article:hover, .grid article:focus-visible { outline: 2px solid #f09c72; }
+.grid span { color: #f09c72; font-family: ui-monospace, monospace; font-size: 0.8rem; }
+.grid h2 { margin: 1.4rem 0 0.35rem; font-size: 1.25rem; }
+.grid p { margin: 0; color: #9aa3b5; }
+#focus { color: #f09c72; min-height: 1.2em; }

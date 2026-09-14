@@ -1,6 +1,6 @@
 {
   "packageId": "com.synapsenest.app",
-  "host": "synapsenest-edge.core-ao.workers.dev",
+  "host": "synapsenest.eim-agent.com",
   "name": "SynapseNest",
   "launcherName": "Nest",
   "display": "standalone",
@@ -8,8 +8,8 @@
   "navigationColor": "#07080b",
   "backgroundColor": "#07080b",
   "startUrl": "/workspace",
-  "iconUrl": "https://synapsenest-edge.core-ao.workers.dev/icons/icon-512.png",
-  "maskableIconUrl": "https://synapsenest-edge.core-ao.workers.dev/icons/icon-512.png",
+  "iconUrl": "https://synapsenest.eim-agent.com/icons/icon-512.png",
+  "maskableIconUrl": "https://synapsenest.eim-agent.com/icons/icon-512.png",
   "appVersion": "1.0.0",
   "shortcuts": [],
   "generatorApp": "bubblewrap"

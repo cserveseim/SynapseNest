@@ -3,12 +3,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const { loadTemplateCatalog, recipeMapFromCatalog, defaultTemplatesRoot } = require('./template-catalog');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const TEMPLATE_RECIPES = Object.freeze({
-  'static-site': Object.freeze({ id: 'static-site', runtime: 'static-preview' })
-});
+const DEFAULT_CATALOG = loadTemplateCatalog(defaultTemplatesRoot());
+const TEMPLATE_RECIPES = recipeMapFromCatalog(DEFAULT_CATALOG);
 
 const TRANSITIONS = Object.freeze({
   created: new Set(['running', 'stopped', 'archived']),
@@ -26,9 +26,10 @@ class WorkspaceStoreError extends Error {
 }
 
 class WorkspaceStore {
-  constructor(dataFile) {
+  constructor(dataFile, options = {}) {
     if (!dataFile || typeof dataFile !== 'string') throw new TypeError('A data file path is required.');
     this.dataFile = path.resolve(dataFile);
+    this.templateRecipes = options.templateRecipes || TEMPLATE_RECIPES;
     this.workspaces = [];
     this.load();
   }
@@ -62,13 +63,14 @@ class WorkspaceStore {
   }
 
   createWorkspace(input = {}) {
-    const templateId = requiredTemplateId(input.templateId);
+    const templateId = this.requiredTemplateId(input.templateId);
+    const baseRecipe = this.templateRecipes[templateId];
     const now = new Date().toISOString();
     const workspace = {
       id: randomUUID(),
       status: 'created',
       templateId,
-      recipe: { ...TEMPLATE_RECIPES[templateId], ...(input.recipe && typeof input.recipe === 'object' ? input.recipe : {}) },
+      recipe: { ...baseRecipe, ...(input.recipe && typeof input.recipe === 'object' ? input.recipe : {}) },
       selectedBranch: optionalText(input.selectedBranch, 'selectedBranch', 120) || 'main',
       selectedSynapseId: optionalText(input.selectedSynapseId, 'selectedSynapseId', 120),
       contractId: optionalText(input.contractId, 'contractId', 120),
@@ -115,6 +117,13 @@ class WorkspaceStore {
     return workspace;
   }
 
+  requiredTemplateId(value) {
+    if (typeof value !== 'string' || !Object.hasOwn(this.templateRecipes, value)) {
+      throw new WorkspaceStoreError(`templateId must be one of: ${Object.keys(this.templateRecipes).join(', ')}.`);
+    }
+    return value;
+  }
+
   persist() {
     fs.mkdirSync(path.dirname(this.dataFile), { recursive: true });
     const temporaryFile = `${this.dataFile}.${process.pid}.${randomUUID()}.tmp`;
@@ -144,13 +153,6 @@ function publicWorkspace(workspace) {
     createdAt: workspace.createdAt,
     updatedAt: workspace.updatedAt
   }));
-}
-
-function requiredTemplateId(value) {
-  if (typeof value !== 'string' || !Object.hasOwn(TEMPLATE_RECIPES, value)) {
-    throw new WorkspaceStoreError(`templateId must be one of: ${Object.keys(TEMPLATE_RECIPES).join(', ')}.`);
-  }
-  return value;
 }
 
 function optionalText(value, field, maximum) {

@@ -1,0 +1,12 @@
+schema: synapsenest.recipe/v1
+id: landing-page
+title: Product landing page
+description: Hero, proof points, and a single call-to-action for a product story.
+runtime: static-preview
+previewPort: 8080
+install: none
+command: httpd
+genomeTemplate: landing
+tags:
+  - marketing
+  - static

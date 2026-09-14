@@ -10,7 +10,7 @@ class ContractError extends Error {
 
 const SCHEMA = 'synapse.contract/v0';
 const STANCES = new Set(['student', 'worker', 'institution', 'enterprise']);
-const RUNTIMES = new Set(['stub', 'static-preview', 'lxc-ubuntu']);
+const RUNTIMES = new Set(['stub', 'static-preview', 'node', 'python', 'lxc-ubuntu']);
 
 function allowUnsigned() {
   return process.env.SYNAPSENEST_ALLOW_UNSIGNED_CONTRACTS === '1' || process.env.NODE_ENV === 'test';
@@ -65,7 +65,7 @@ function validateContract(input) {
     lineage: { title, description, genomeId, synapseId, proofPath },
     recipe: {
       templateId,
-      nestTemplateId: 'static-site',
+      nestTemplateId: nestTemplateFor(templateId, runtime),
       runtime,
       previewPort: Number(recipe.previewPort) || 8080,
       install: optionalString(recipe.install, 'recipe.install', 80) || 'none',
@@ -97,6 +97,13 @@ function validateContract(input) {
       guardianFp
     }
   };
+}
+
+
+function nestTemplateFor(templateId, runtime) {
+  if (templateId === 'node-api' || runtime === 'node') return 'node-api';
+  if (templateId === 'python-api' || runtime === 'python') return 'python-api';
+  return 'static-site';
 }
 
 function requiredString(value, field, max) {

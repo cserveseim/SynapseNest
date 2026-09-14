@@ -1,0 +1,69 @@
+# SynapseNest production stack (cutover):
+# - App serves JSON stores from bind-mounted data/
+# - Live traffic target: 127.0.0.1:3000 (after systemd stop)
+# - Parallel soak uses 127.0.0.1:3001 until cutover
+#
+# RISK: /var/run/docker.sock is mounted read-only into the app container so
+# RuntimeAdapter can create reviewed preview containers (BusyBox / Node / Python)
+# on the HOST daemon. That grants broad control of Docker on this host — treat as privileged.
+
+name: synapsenest
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-synapsenest}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-synapsenest}
+    volumes:
+      - synapsenest_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - synapsenest
+
+  synapsenest:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: synapsenest:prod
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.prod
+    environment:
+      # Override path for Docker-out-of-Docker workspace bind mounts
+      SYNAPSENEST_HOST_WORKSPACES_ROOT: /home/nexus/SynapseNest/data/workspaces
+    ports:
+      # Cutover publish — temporarily :3001 until systemd stopped, then :3000
+      - "127.0.0.1:3000:3000"
+    volumes:
+      # Full JSON store + workspace files (auth, genomes, workspaces.json, workspaces/)
+      - /home/nexus/SynapseNest/data:/app/data
+      # Explicit workspaces mount (same tree; documents intent for workspace files)
+      - /home/nexus/SynapseNest/data/workspaces:/app/data/workspaces
+      # Grok CLI auth for SpaceXAI (same source live systemd uses via ~nexus)
+      - /home/nexus/.grok/auth.json:/home/node/.grok/auth.json:ro
+      # RISK: host Docker control for reviewed runtime-adapter previews (BusyBox/Node/Python)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Match host nexus (1000) + docker group for socket access
+    user: "1000:1000"
+    group_add:
+      - "988"
+    networks:
+      - synapsenest
+
+volumes:
+  synapsenest_pg:
+
+networks:
+  synapsenest:
+    driver: bridge

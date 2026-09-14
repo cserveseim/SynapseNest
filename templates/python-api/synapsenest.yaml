@@ -1,0 +1,12 @@
+schema: synapsenest.recipe/v1
+id: python-api
+title: Python API
+description: Pinned python:3.12-alpine HTTP service starter for SynapseNest workspaces.
+runtime: python
+previewPort: 8080
+install: none
+command: python -u /workspace/app.py
+genomeTemplate: python-api
+tags:
+  - python
+  - api

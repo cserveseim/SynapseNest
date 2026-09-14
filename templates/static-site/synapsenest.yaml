@@ -1,0 +1,12 @@
+schema: synapsenest.recipe/v1
+id: static-site
+title: Static site
+description: Minimal HTML, CSS, and JS starter for a clear static page.
+runtime: static-preview
+previewPort: 8080
+install: none
+command: httpd
+genomeTemplate: blank
+tags:
+  - static
+  - starter

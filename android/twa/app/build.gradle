@@ -18,9 +18,9 @@ android {
         versionCode 1
         versionName '1.0.0'
         manifestPlaceholders = [
-            hostName: 'synapsenest-edge.core-ao.workers.dev',
-            defaultUrl: 'https://synapsenest-edge.core-ao.workers.dev/workspace',
-            assetStatements: '[{ "relation": ["delegate_permission/common.handle_all_urls"], "target": { "namespace": "web", "site": "https://synapsenest-edge.core-ao.workers.dev"}}]'
+            hostName: 'synapsenest.eim-agent.com',
+            defaultUrl: 'https://synapsenest.eim-agent.com/workspace',
+            assetStatements: '[{ "relation": ["delegate_permission/common.handle_all_urls"], "target": { "namespace": "web", "site": "https://synapsenest.eim-agent.com"}}]'
         ]
     }
     signingConfigs {

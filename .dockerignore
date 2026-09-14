@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log*
+.git
+.wrangler
+data
+logs
+*.log
+.env
+.env.*
+!.env.example
+deploy/.env.prod
+android
+docs
+test
+.superpowers
+**/*.bak*
+**/*~

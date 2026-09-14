@@ -1,10 +1,15 @@
-const CACHE = 'synapsenest-v3';
+const CACHE = 'synapsenest-v6-pty';
 const PRECACHE = [
   '/workspace',
   '/workspace.html',
   '/styles.css',
   '/workspace.css',
   '/workspace.js',
+  '/vendor/monaco/vs/loader.js',
+  '/vendor/monaco/vs/editor/editor.main.css',
+  '/vendor/xterm/xterm.css',
+  '/vendor/xterm/xterm.js',
+  '/vendor/xterm/addon-fit.js',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png'

@@ -1,0 +1,12 @@
+schema: synapsenest.recipe/v1
+id: node-api
+title: Node.js API
+description: Pinned node:22-alpine HTTP service starter for SynapseNest workspaces.
+runtime: node
+previewPort: 8080
+install: none
+command: node /workspace/server.js
+genomeTemplate: node-api
+tags:
+  - node
+  - api

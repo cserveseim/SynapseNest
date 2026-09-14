@@ -39,9 +39,11 @@ async function startApp(directory, previewPort, extra = {}) {
       status(id) { return { id, status: 'running' }; },
       previewTarget() { return { host: '127.0.0.1', port: previewPort }; },
       attachShell() {
-        return childProcess.spawn(process.execPath, ['-e', 'process.stdin.on("data", (chunk) => process.stdout.write(chunk));'], {
+        const child = childProcess.spawn(process.execPath, ['-e', 'process.stdin.on("data", (chunk) => process.stdout.write(chunk));'], {
           stdio: ['pipe', 'pipe', 'pipe']
         });
+        child.resize = async () => ({ cols: 80, rows: 24 });
+        return child;
       }
     },
     ...extra

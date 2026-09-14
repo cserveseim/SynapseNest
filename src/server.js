@@ -12,6 +12,8 @@ const { AuthStore, AuthStoreError } = require('./auth-store');
 const { AiStudio, AiStudioError, loadGrokCliToken } = require('./ai-studio');
 const { isWebSocketUpgrade, accept } = require('./websocket');
 const { validateContract, ContractError } = require('./contract');
+const { loadTemplateCatalog, TemplateCatalogError } = require('./template-catalog');
+const { createStores, createJsonStores, postgresRequested } = require('./store-factory');
 
 const ROOT_DIR = path.join(__dirname, '..');
 const BODY_LIMIT = 100_000;
@@ -40,18 +42,36 @@ function createApp(options = {}) {
   const rootDir = options.rootDir || ROOT_DIR;
   if (!options.skipEnvFile) loadDotEnv(options.envFile || path.join(rootDir, '.env'));
   const publicDir = options.publicDir || path.join(rootDir, 'public');
-  const store = new ProjectGenomeStore(options.dataFile || path.join(rootDir, 'data', 'project-genomes.json'));
-  const workspaceStore = new WorkspaceStore(options.workspaceDataFile || path.join(rootDir, 'data', 'workspaces.json'));
+  const templatesRoot = options.templatesRoot || path.join(rootDir, 'templates');
+  const templateCatalog = options.templateCatalog || loadTemplateCatalog(templatesRoot);
+  const templateRecipes = Object.fromEntries(templateCatalog.templates.map((template) => [template.id, template.recipe]));
   const workspacesRoot = options.workspacesRoot || path.join(rootDir, 'data', 'workspaces');
   const exportsRoot = options.exportsRoot || path.join(rootDir, 'data', 'exports');
   const files = new WorkspaceFiles(workspacesRoot);
   const gitService = options.gitService || new GitService({
     workspacesRoot,
     exportsRoot,
-    templatesRoot: path.join(rootDir, 'templates')
+    templatesRoot
   });
   const runtime = options.runtimeAdapter || new RuntimeAdapter({ workspacesRoot });
-  const auth = new AuthStore(options.authFile || path.join(rootDir, 'data', 'auth.json'));
+  const resolvedStores = options.stores || createJsonStores({
+    rootDir,
+    authFile: options.authFile || path.join(rootDir, 'data', 'auth.json'),
+    workspaceDataFile: options.workspaceDataFile || path.join(rootDir, 'data', 'workspaces.json'),
+    dataFile: options.dataFile || path.join(rootDir, 'data', 'project-genomes.json'),
+    auth: options.auth,
+    workspaceStore: options.workspaceStore,
+    store: options.store,
+    templateRecipes,
+    forceJson: true
+  });
+  if (postgresRequested() && !options.stores) {
+    console.error('[server] USE_POSTGRES=1 but Postgres stores were not provided at boot; using JSON (boot via createAppAsync).');
+  }
+  const auth = resolvedStores.auth;
+  const workspaceStore = resolvedStores.workspaceStore;
+  const store = resolvedStores.store;
+  const storeBackend = resolvedStores.backend || 'json';
   const cookieSecure = options.cookieSecure ?? process.env.SYNAPSENEST_SECURE_COOKIES === '1';
   const fetchImpl = options.fetch || globalThis.fetch;
   const ai = options.aiStudio || new AiStudio({
@@ -77,7 +97,9 @@ function createApp(options = {}) {
     const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
     const method = request.method || 'GET';
     try {
-      if (url.pathname === '/api/health' && method === 'GET') return sendJson(response, 200, { ok: true, product: 'SynapseNest' });
+      if (url.pathname === '/api/health' && method === 'GET') return sendJson(response, 200, { ok: true, product: 'SynapseNest', storeBackend });
+      const proofApi = /^\/api\/proof\/([^/]+)\/([^/]+)$/.exec(url.pathname);
+      if (proofApi && method === 'GET') return await handleProofGet(decodeURIComponent(proofApi[1]), decodeURIComponent(proofApi[2]), response);
       if (url.pathname === '/api/ai/status' && method === 'GET') return sendJson(response, 200, ai.status());
       if (url.pathname === '/api/auth/session' && method === 'GET') return await handleAuthSession(request, response);
       if (url.pathname === '/api/auth/bootstrap' && method === 'POST') return await handleBootstrap(request, response);
@@ -85,8 +107,11 @@ function createApp(options = {}) {
       if (url.pathname === '/api/auth/logout' && method === 'POST') return await handleLogout(request, response);
       if (url.pathname === '/api/contracts/accept' && method === 'POST') return await handleContractAccept(request, response);
 
-      if (url.pathname === '/api/projects' && method === 'GET') return sendJson(response, 200, { projects: store.listProjects() });
-      if (url.pathname === '/api/projects' && method === 'POST') return sendJson(response, 201, { project: store.createProject(await readJson(request)) });
+      if (url.pathname === '/api/templates' && method === 'GET') {
+        return sendJson(response, 200, { templates: templateCatalog.templates, schema: 'synapsenest.recipe/v1' });
+      }
+      if (url.pathname === '/api/projects' && method === 'GET') return sendJson(response, 200, { projects: await store.listProjects() });
+      if (url.pathname === '/api/projects' && method === 'POST') return sendJson(response, 201, { project: await store.createProject(await readJson(request)) });
       const projectMatch = /^\/api\/projects\/([^/]+)(?:\/(synapses|winner|publish|export))?$/.exec(url.pathname);
       if (projectMatch) return await handleProjectRoute(request, response, method, decodeProjectId(projectMatch[1]), projectMatch[2]);
 
@@ -103,9 +128,9 @@ function createApp(options = {}) {
   }
 
   async function handleAuthSession(request, response) {
-    if (!auth.hasOwner()) return sendJson(response, 200, { owner: false, authenticated: false });
+    if (!(await auth.hasOwner())) return sendJson(response, 200, { owner: false, authenticated: false });
     try {
-      const session = auth.authenticate(readCookies(request)[SESSION_COOKIE]);
+      const session = await auth.authenticate(readCookies(request)[SESSION_COOKIE]);
       return sendJson(response, 200, { owner: true, authenticated: true, csrfToken: session.csrfToken });
     } catch {
       return sendJson(response, 200, { owner: true, authenticated: false });
@@ -115,7 +140,7 @@ function createApp(options = {}) {
   async function handleBootstrap(request, response) {
     assertSameOrigin(request);
     const body = await readJson(request);
-    const session = auth.bootstrap(body.password);
+    const session = await auth.bootstrap(body.password);
     setSessionCookie(response, session.token, cookieSecure);
     return sendJson(response, 201, { owner: true, authenticated: true, csrfToken: session.csrfToken });
   }
@@ -123,7 +148,7 @@ function createApp(options = {}) {
   async function handleLogin(request, response) {
     assertSameOrigin(request);
     const body = await readJson(request);
-    const session = auth.login(body.password);
+    const session = await auth.login(body.password);
     setSessionCookie(response, session.token, cookieSecure);
     return sendJson(response, 200, { owner: true, authenticated: true, csrfToken: session.csrfToken });
   }
@@ -132,30 +157,30 @@ function createApp(options = {}) {
     const token = readCookies(request)[SESSION_COOKIE];
     if (token) {
       try {
-        const session = auth.authenticate(token);
+        const session = await auth.authenticate(token);
         if (MUTATING.has(request.method || '')) auth.assertCsrf(session, request.headers['x-csrf-token']);
       } catch (error) {
         if (!(error instanceof AuthStoreError && error.statusCode === 401)) throw error;
       }
     }
-    auth.logout(token);
+    await auth.logout(token);
     clearSessionCookie(response, cookieSecure);
-    return sendJson(response, 200, { owner: auth.hasOwner(), authenticated: false });
+    return sendJson(response, 200, { owner: await auth.hasOwner(), authenticated: false });
   }
 
   async function handleProjectRoute(request, response, method, projectId, action) {
-    if (!action && method === 'GET') return sendJson(response, 200, { project: store.getProject(projectId) });
+    if (!action && method === 'GET') return sendJson(response, 200, { project: await store.getProject(projectId) });
     if (action === 'synapses' && method === 'POST') {
-      store.forkSynapse(projectId, await readJson(request));
-      return sendJson(response, 201, { project: store.getProject(projectId) });
+      await store.forkSynapse(projectId, await readJson(request));
+      return sendJson(response, 201, { project: await store.getProject(projectId) });
     }
-    if (action === 'winner' && method === 'POST') return sendJson(response, 200, { project: store.selectWinner(projectId, await readJson(request)) });
+    if (action === 'winner' && method === 'POST') return sendJson(response, 200, { project: await store.selectWinner(projectId, await readJson(request)) });
     if (action === 'publish' && method === 'POST') {
-      store.publish(projectId, await readJson(request));
-      return sendJson(response, 201, { project: store.getProject(projectId) });
+      await store.publish(projectId, await readJson(request));
+      return sendJson(response, 201, { project: await store.getProject(projectId) });
     }
     if (action === 'export' && method === 'GET') {
-      const payload = store.exportProject(projectId);
+      const payload = await store.exportProject(projectId);
       response.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
         'Content-Disposition': `attachment; filename="${projectId}-genome.json"`,
@@ -167,18 +192,77 @@ function createApp(options = {}) {
   }
 
 
-  async function handleContractAccept(request, response) {
-    const session = requireSession(request);
+  async function assertContractAccess(request) {
+    const expected = process.env.NEST_CONTRACT_TOKEN || '';
+    const provided = String(request.headers['x-nest-contract-token'] || '');
+    if (expected && provided && provided === expected) {
+      console.warn('[contracts/accept] same-host contract token accepted');
+      return { via: 'contract-token' };
+    }
+    const session = await requireSession(request);
     auth.assertCsrf(session, request.headers['x-csrf-token']);
+    return { via: 'session', session };
+  }
+
+
+  async function handleProofGet(projectId, synapseId, response) {
+    const project = await store.getProject(projectId);
+    const synapse = (project.synapses || []).find((item) => item.id === synapseId);
+    if (!synapse) {
+      return sendJson(response, 404, { error: 'Synapse not found on this genome.' });
+    }
+    const expectedPath = `/proof/${projectId}/${synapseId}`;
+    const matches = (await workspaceStore.listWorkspaces()).filter((row) => {
+      if (row.proofPath === expectedPath) return true;
+      if (row.selectedSynapseId === synapseId && row.contractId) return true;
+      return false;
+    });
+    const workspace = matches.sort((a, b) => {
+      const ra = Number(a.contractRev) || 0;
+      const rb = Number(b.contractRev) || 0;
+      if (rb !== ra) return rb - ra;
+      return String(b.id || "").localeCompare(String(a.id || ""));
+    })[0];
+    const contract = workspace && workspace.contract && typeof workspace.contract === 'object'
+      ? workspace.contract
+      : null;
+    const publication = (project.publications || []).find((item) => item.synapseId === synapseId);
+    if (!contract && !publication) {
+      return sendJson(response, 404, { error: 'No sealed Contract or publication for this proof link.' });
+    }
+    const identity = (contract && contract.identity) || {};
+    const issuer = (contract && contract.issuer) || {};
+    const recipe = (contract && contract.recipe) || (workspace && workspace.recipe) || {};
+    const runtime = recipe.runtime || 'stub';
+    return sendJson(response, 200, {
+      ok: true,
+      projectId: project.id,
+      synapseId,
+      synapseName: synapse.name || '',
+      title: (contract && contract.lineage && contract.lineage.title) || project.title,
+      description: project.description || '',
+      mission: identity.mission || project.description || '',
+      contractId: (workspace && workspace.contractId) || (contract && contract.id) || '',
+      contractRev: (workspace && workspace.contractRev) || (contract && contract.rev) || 0,
+      guardianFp: issuer.guardianFp || '',
+      runtime,
+      proofPath: (workspace && workspace.proofPath) || expectedPath,
+      publishedAt: publication ? publication.publishedAt : '',
+      via: contract ? 'contract' : 'publication'
+    });
+  }
+
+  async function handleContractAccept(request, response) {
+    await assertContractAccess(request);
     const body = await readJson(request);
     const contract = validateContract(body.contract || body);
     let genomeId = contract.lineage.genomeId;
     let synapseId = contract.lineage.synapseId;
     let project;
     if (genomeId) {
-      project = store.getProject(genomeId);
+      project = await store.getProject(genomeId);
     } else {
-      project = store.createProject({
+      project = await store.createProject({
         title: contract.lineage.title,
         description: contract.lineage.description || contract.identity.mission,
         template: contract.recipe.templateId === 'static-site' ? 'Creator site' : contract.recipe.templateId
@@ -188,8 +272,8 @@ function createApp(options = {}) {
     }
     if (!synapseId) synapseId = project.winnerId;
     const proofPath = contract.lineage.proofPath || `/proof/${genomeId}/${synapseId}`;
-    const workspace = workspaceStore.createWorkspace({
-      templateId: contract.recipe.nestTemplateId || 'static-site',
+    const workspace = await workspaceStore.createWorkspace({
+      templateId: resolveNestTemplateId(contract.recipe),
       selectedSynapseId: synapseId,
       contractId: contract.id,
       contractRev: contract.rev,
@@ -203,10 +287,10 @@ function createApp(options = {}) {
         policy: contract.policy
       }
     });
-    gitService.createStarter(workspace.id);
+    gitService.createStarter(workspace.id, workspace.templateId);
     // stub runtime: do not start docker; identity sealed without matter
     if (contract.recipe.runtime !== 'stub') {
-      try { startWorkspace(workspace.id); } catch { /* best-effort */ }
+      try { await startWorkspace(workspace.id); } catch { /* best-effort */ }
     }
     // stamp proofPath back onto stored workspace via recreate fields already set
     return sendJson(response, 201, {
@@ -222,23 +306,23 @@ function createApp(options = {}) {
   }
 
   async function handleWorkspaceRoute(request, response, method, url, workspaceId, action, rest) {
-    const session = requireSession(request);
+    const session = await requireSession(request);
     if (MUTATING.has(method)) auth.assertCsrf(session, request.headers['x-csrf-token']);
 
-    if (!workspaceId && method === 'GET') return sendJson(response, 200, { workspaces: workspaceStore.listWorkspaces() });
+    if (!workspaceId && method === 'GET') return sendJson(response, 200, { workspaces: await workspaceStore.listWorkspaces() });
     if (!workspaceId && method === 'POST') {
-      const workspace = workspaceStore.createWorkspace(await readJson(request));
-      gitService.createStarter(workspace.id);
-      try { startWorkspace(workspace.id); } catch { /* runtime start is best-effort on create */ }
-      return sendJson(response, 201, { workspace: workspaceStore.getWorkspace(workspace.id) });
+      const workspace = await workspaceStore.createWorkspace(await readJson(request));
+      gitService.createStarter(workspace.id, workspace.templateId);
+      try { await startWorkspace(workspace.id); } catch { /* runtime start is best-effort on create */ }
+      return sendJson(response, 201, { workspace: await workspaceStore.getWorkspace(workspace.id) });
     }
     if (!workspaceId) return sendJson(response, 405, { error: 'Method not allowed.' });
     if (!WORKSPACE_ID.test(workspaceId)) throw Object.assign(new Error('Workspace ID is invalid.'), { statusCode: 400 });
 
-    const workspace = workspaceStore.getWorkspace(workspaceId);
+    const workspace = await workspaceStore.getWorkspace(workspaceId);
     if (!action && method === 'GET') return sendJson(response, 200, { workspace });
-    if (action === 'start' && method === 'POST') return sendJson(response, 200, { workspace: startWorkspace(workspaceId) });
-    if (action === 'stop' && method === 'POST') return sendJson(response, 200, { workspace: stopWorkspace(workspaceId) });
+    if (action === 'start' && method === 'POST') return sendJson(response, 200, { workspace: await startWorkspace(workspaceId) });
+    if (action === 'stop' && method === 'POST') return sendJson(response, 200, { workspace: await stopWorkspace(workspaceId) });
     if (action === 'files' && method === 'GET') return sendJson(response, 200, { files: files.listFiles(workspaceId) });
     if (action === 'file' && method === 'GET') return sendJson(response, 200, { path: String(url.searchParams.get('path') || ''), content: files.readFile(workspaceId, url.searchParams.get('path')) });
     if (action === 'file' && method === 'PUT') {
@@ -249,7 +333,7 @@ function createApp(options = {}) {
     if (action === 'snapshots' && method === 'POST') {
       const body = await readJson(request);
       const snapshot = gitService.createSnapshot(workspaceId, body.branch);
-      return sendJson(response, 201, { snapshot, workspace: workspaceStore.getWorkspace(workspaceId) });
+      return sendJson(response, 201, { snapshot, workspace: await workspaceStore.getWorkspace(workspaceId) });
     }
     if (action === 'export' && method === 'GET') {
       const format = url.searchParams.get('format') || 'tar';
@@ -269,31 +353,31 @@ function createApp(options = {}) {
     return sendJson(response, 405, { error: 'Method not allowed.' });
   }
 
-  function startWorkspace(workspaceId) {
-    const workspace = workspaceStore.requireWorkspace(workspaceId);
+  async function startWorkspace(workspaceId) {
+    const workspace = await workspaceStore.requireWorkspace(workspaceId);
     if (workspace.status === 'archived') throw new WorkspaceStoreError('Cannot start an archived workspace.', 409);
-    ensureStarter(workspaceId);
+    await ensureStarter(workspaceId);
     let runtimeId = workspace.runtimeId;
     if (runtimeId) {
       try { runtime.status(runtimeId); } catch { runtimeId = ''; }
     }
     if (!runtimeId) {
       runtimeId = runtime.create(workspaceId).id;
-      workspaceStore.setRuntimeId(workspaceId, runtimeId);
+      await workspaceStore.setRuntimeId(workspaceId, runtimeId);
     }
     runtime.start(runtimeId);
-    if (workspace.status !== 'running') workspaceStore.transitionWorkspace(workspaceId, 'running');
+    if (workspace.status !== 'running') await workspaceStore.transitionWorkspace(workspaceId, 'running');
     return workspaceStore.getWorkspace(workspaceId);
   }
 
-  function stopWorkspace(workspaceId) {
-    const workspace = workspaceStore.requireWorkspace(workspaceId);
+  async function stopWorkspace(workspaceId) {
+    const workspace = await workspaceStore.requireWorkspace(workspaceId);
     if (workspace.runtimeId) {
       try { runtime.stop(workspace.runtimeId); } catch (error) {
         if (!(error instanceof RuntimeAdapterError && error.statusCode === 404)) throw error;
       }
     }
-    if (workspace.status === 'running') workspaceStore.transitionWorkspace(workspaceId, 'stopped');
+    if (workspace.status === 'running') await workspaceStore.transitionWorkspace(workspaceId, 'stopped');
     return workspaceStore.getWorkspace(workspaceId);
   }
 
@@ -322,10 +406,21 @@ function createApp(options = {}) {
     };
   }
 
-  function ensureStarter(workspaceId) {
+  async function ensureStarter(workspaceId) {
     const workspacePath = gitService.workspacePath(workspaceId);
     const entries = fs.readdirSync(workspacePath).filter((name) => name !== '.git');
-    if (entries.length === 0) gitService.createStarter(workspaceId);
+    if (entries.length === 0) {
+      const workspace = await workspaceStore.requireWorkspace(workspaceId);
+      gitService.createStarter(workspaceId, workspace.templateId || 'static-site');
+    }
+  }
+
+
+  function resolveNestTemplateId(recipe = {}) {
+    const requested = recipe.nestTemplateId || recipe.templateId || 'static-site';
+    if (templateCatalog.byId[requested]) return requested;
+    if (requested === 'blank') return templateCatalog.byId['static-site'] ? 'static-site' : (templateCatalog.ids[0] || 'static-site');
+    return templateCatalog.byId['static-site'] ? 'static-site' : (templateCatalog.ids[0] || 'static-site');
   }
 
   async function proxyPreview(request, response, workspace, rest) {
@@ -361,10 +456,10 @@ function createApp(options = {}) {
       return;
     }
     try {
-      requireSession(request);
+      await requireSession(request);
       const workspaceId = match[1];
       if (!WORKSPACE_ID.test(workspaceId)) throw Object.assign(new Error('Workspace ID is invalid.'), { statusCode: 400 });
-      const workspace = workspaceStore.getWorkspace(workspaceId);
+      const workspace = await workspaceStore.getWorkspace(workspaceId);
       if (workspace.status !== 'running' || !workspace.runtimeId) throw Object.assign(new Error('Workspace terminal is not running.'), { statusCode: 409 });
       const ws = accept(request, socket, head);
       if (!ws) return;
@@ -389,7 +484,7 @@ function createApp(options = {}) {
     }
   }
 
-  function requireSession(request) {
+  async function requireSession(request) {
     return auth.authenticate(readCookies(request)[SESSION_COOKIE]);
   }
 
@@ -410,6 +505,7 @@ function createApp(options = {}) {
     if (
       error instanceof StoreError
       || error instanceof WorkspaceStoreError
+      || error instanceof TemplateCatalogError
       || error instanceof WorkspaceFileError
       || error instanceof GitServiceError
       || error instanceof RuntimeAdapterError
@@ -424,7 +520,7 @@ function createApp(options = {}) {
     return sendJson(response, 500, { error: 'Internal server error.' });
   }
 
-  return { server, store, workspaceStore, auth, ai };
+  return { server, store, workspaceStore, auth, ai, storeBackend };
 }
 
 function loadDotEnv(filePath) {
@@ -560,13 +656,44 @@ function isAllowedPreviewHost(host) {
   return false;
 }
 
-if (require.main === module) {
-  const port = numberFromEnvironment(process.env.PORT, 3000);
-  const host = process.env.HOST || '0.0.0.0';
-  const { server } = createApp();
-  server.listen(port, host, () => {
-    console.log(`SynapseNest listening on http://${host}:${port}`);
+async function createAppAsync(options = {}) {
+  const rootDir = options.rootDir || ROOT_DIR;
+  if (!options.skipEnvFile) loadDotEnv(options.envFile || path.join(rootDir, '.env'));
+  const templatesRoot = options.templatesRoot || path.join(rootDir, 'templates');
+  const templateCatalog = options.templateCatalog || loadTemplateCatalog(templatesRoot);
+  const templateRecipes = Object.fromEntries(templateCatalog.templates.map((template) => [template.id, template.recipe]));
+  const stores = options.stores || await createStores({
+    rootDir,
+    authFile: options.authFile || path.join(rootDir, 'data', 'auth.json'),
+    workspaceDataFile: options.workspaceDataFile || path.join(rootDir, 'data', 'workspaces.json'),
+    dataFile: options.dataFile || path.join(rootDir, 'data', 'project-genomes.json'),
+    databaseUrl: options.databaseUrl,
+    templateRecipes,
+    forceJson: options.forceJson
+  });
+  return createApp({
+    ...options,
+    skipEnvFile: true,
+    stores,
+    templateCatalog,
+    templatesRoot,
+    rootDir
   });
 }
 
-module.exports = { createApp, numberFromEnvironment };
+if (require.main === module) {
+  const port = numberFromEnvironment(process.env.PORT, 3000);
+  const host = process.env.HOST || '0.0.0.0';
+  createAppAsync()
+    .then(({ server, storeBackend }) => {
+      server.listen(port, host, () => {
+        console.log(`SynapseNest listening on http://${host}:${port} (storeBackend=${storeBackend})`);
+      });
+    })
+    .catch((error) => {
+      console.error('[server] boot failed:', error && error.stack ? error.stack : error);
+      process.exit(1);
+    });
+}
+
+module.exports = { createApp, createAppAsync, numberFromEnvironment, createStores, postgresRequested };

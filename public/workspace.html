@@ -7,49 +7,61 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="SynapseNest">
-  <title>SynapseNest</title>
+  <title>SynapseNest · Workspace</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/workspace.css">
+  <link rel="stylesheet" href="/vendor/monaco/vs/editor/editor.main.css">
+  <!-- BEGIN:XTERM_ASSETS -->
+  <link rel="stylesheet" href="/vendor/xterm/xterm.css">
+  <!-- END:XTERM_ASSETS -->
 </head>
 <body class="workspace-page">
   <div class="shell workspace-shell">
-    <aside>
-      <a class="brand" href="/">synapsenest</a>
-      <div class="side-title">Workspaces <button id="newWorkspace" type="button" aria-label="New workspace">＋</button></div>
-      <nav id="workspaceList"></nav>
+    <aside id="sidebar">
+      <a class="brand" href="/" aria-label="SynapseNest home">synapse<span>nest</span></a>
+      <div class="side-title">Workspaces <button id="newWorkspace" type="button" aria-label="New workspace" title="New workspace">＋</button></div>
+      <nav id="workspaceList" aria-label="Workspaces"></nav>
       <div class="side-title">Files</div>
-      <div id="fileTree"></div>
+      <div id="fileTree" aria-label="Workspace files"></div>
       <small id="ownerState">● Owner session required</small>
     </aside>
     <main>
       <header>
         <button id="menu" type="button" aria-label="Menu">☰</button>
         <div class="crumb">workspace <b>/</b> <strong id="crumb">sign in</strong></div>
-        <span class="local">● local</span>
-        <button id="installApp" class="quiet" type="button" hidden>Install app</button>
-        <a class="quiet" href="/downloads/synapsenest.apk" download>APK</a>
-        <a class="quiet" href="/">Genomes</a>
-        <button id="logout" class="quiet" type="button" hidden>Log out</button>
+        <span class="local" title="Running on this host">● local</span>
+        <div class="header-actions">
+          <button id="installApp" class="quiet" type="button" hidden>Install app</button>
+          <a class="quiet" href="/downloads/synapsenest.apk" download>APK</a>
+          <a class="quiet" href="/">Genomes</a>
+          <button id="logout" class="quiet" type="button" hidden>Log out</button>
+        </div>
       </header>
 
-      <section id="authPanel">
+      <section id="authPanel" class="auth-gate" aria-labelledby="authTitle">
+        <div class="auth-mark" aria-hidden="true">◈</div>
         <p class="eyebrow" id="authEyebrow">Sign in</p>
         <h1 id="authTitle">Owner password</h1>
-        <p id="authCopy">Required for Docker workspaces, terminal, and Grok edits.</p>
-        <form id="authForm">
-          <label>Password <input id="password" name="password" type="password" required minlength="10" autocomplete="current-password"></label>
+        <p id="authCopy" class="auth-copy">Required for Docker workspaces, terminal, and Grok edits.</p>
+        <form id="authForm" novalidate>
+          <label for="password">Password
+            <input id="password" name="password" type="password" required minlength="10" autocomplete="current-password" spellcheck="false" placeholder="••••••••••••">
+          </label>
+          <p id="authHint" class="auth-hint">Minimum 10 characters. Stored only on this server.</p>
+          <p id="authError" class="auth-error" role="alert" hidden></p>
           <div class="actions">
-            <button class="primary" id="authSubmit" type="submit">Continue</button>
+            <button class="primary auth-submit" id="authSubmit" type="submit">Continue</button>
           </div>
         </form>
+        <p class="auth-footer">SynapseNest · self-hosted IDE · eim</p>
       </section>
 
       <section id="workspaceStudio" hidden>
         <div class="workspace-toolbar">
-          <div>
+          <div class="workspace-identity">
             <p class="eyebrow">Workspace</p>
             <h1 id="workspaceTitle">static-site</h1>
             <p id="workspaceMeta">stopped</p>
@@ -62,21 +74,23 @@
             <button id="save" class="quiet" type="button">Save</button>
           </div>
         </div>
-        <div class="pane-switch" role="tablist">
-          <button type="button" data-pane="files">Files</button>
-          <button type="button" data-pane="editor">Editor</button>
-          <button type="button" data-pane="chat" class="active">Grok</button>
-          <button type="button" data-pane="terminal">Terminal</button>
+        <div class="pane-switch" role="tablist" aria-label="Workspace panes">
+          <button type="button" data-pane="files" role="tab">Files</button>
+          <button type="button" data-pane="editor" role="tab">Editor</button>
+          <button type="button" data-pane="chat" class="active" role="tab" aria-selected="true">Grok</button>
+          <button type="button" data-pane="terminal" role="tab">Terminal</button>
         </div>
         <div class="workspace-stage">
           <div class="workspace-grid">
+            <!-- BEGIN:MONACO_EDITOR — owned by Monaco worker; do not edit -->
             <section class="pane editor-pane" data-pane-panel="editor">
               <p class="eyebrow" id="editorLabel">EDITOR</p>
-              <textarea id="editor" spellcheck="false" placeholder="Open a file from the sidebar."></textarea>
+              <div id="editor" class="monaco-host" role="application" aria-label="File editor"></div>
             </section>
+            <!-- END:MONACO_EDITOR -->
             <section class="pane chat-pane" data-pane-panel="chat">
               <p class="eyebrow">GROK</p>
-              <div id="chatLog"></div>
+              <div id="chatLog" aria-live="polite"></div>
               <div class="composer">
                 <div class="chips" id="chips">
                   <button type="button" data-chip="Build a tight landing page with a headline, one CTA, and a dark canvas.">Build a landing page</button>
@@ -84,17 +98,21 @@
                   <button type="button" data-chip="Add a second section under the hero with three short feature cards.">Add a section</button>
                 </div>
                 <form id="chatForm">
-                  <textarea id="chatInput" maxlength="8000" placeholder="Ask me anything"></textarea>
-                  <button class="primary" id="chatSend" type="submit">↑</button>
+                  <textarea id="chatInput" maxlength="8000" placeholder="Ask Grok to edit this workspace…" aria-label="Prompt for Grok"></textarea>
+                  <button class="primary" id="chatSend" type="submit" aria-label="Send">↑</button>
                 </form>
                 <p id="aiStatus" class="ai-status">Checking SpaceXAI…</p>
               </div>
             </section>
+            <!-- BEGIN:XTERM_TERMINAL -->
             <section class="pane terminal-pane" data-pane-panel="terminal">
-              <p class="eyebrow">TERMINAL</p>
-              <pre id="terminal"></pre>
-              <input id="terminalInput" type="text" autocomplete="off" spellcheck="false" placeholder="Command, then Enter">
+              <div class="terminal-chrome">
+                <p class="eyebrow">TERMINAL</p>
+                <span id="terminalStatus" class="terminal-status" data-state="idle">idle</span>
+              </div>
+              <div id="terminal" class="xterm-host" role="application" aria-label="Workspace terminal"></div>
             </section>
+            <!-- END:XTERM_TERMINAL -->
           </div>
           <aside id="previewPip" class="preview-pip" hidden>
             <div class="pip-bar" id="pipBar">
@@ -108,7 +126,31 @@
       </section>
     </main>
   </div>
-  <div id="toast"></div>
+
+  <dialog id="newWorkspaceDialog">
+    <form method="dialog" id="newWorkspaceForm">
+      <h2>New workspace</h2>
+      <p class="auth-copy">Pick a reviewed runtime template. Static BusyBox stays available.</p>
+      <label>Template
+        <select name="templateId" id="newWorkspaceTemplate" required>
+          <option value="static-site">Static site (BusyBox httpd)</option>
+          <option value="node-api">Node.js API (node:22-alpine)</option>
+          <option value="python-api">Python API (python:3.12-alpine)</option>
+        </select>
+      </label>
+      <div class="actions">
+        <button type="button" value="cancel" class="quiet" id="newWorkspaceCancel">Cancel</button>
+        <button class="primary" value="default" id="newWorkspaceConfirm">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/vendor/monaco/vs/loader.js"></script>
+  <!-- BEGIN:XTERM_ASSETS -->
+  <script src="/vendor/xterm/xterm.js" defer></script>
+  <script src="/vendor/xterm/addon-fit.js" defer></script>
+  <!-- END:XTERM_ASSETS -->
   <script src="/workspace.js" defer></script>
 </body>
 </html>

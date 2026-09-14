@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { RuntimeAdapter, RUNTIME_IMAGE, RuntimeAdapterError } = require('../src/runtime-adapter');
+const { RuntimeAdapter, RUNTIME_IMAGE, RUNTIME_PROFILES, RuntimeAdapterError } = require('../src/runtime-adapter');
 
 const WORKSPACE_ID = 'b70a7e9d-3323-4a49-909c-d2994324a90d';
 const REVIEWED_IMAGE = 'busybox@sha256:3c6ae8008e2c2eedd141725c30b20d9c36b026eb796688f88205845ef17aa213';
@@ -39,11 +39,13 @@ test('creates only a fixed, resource-bounded and isolated static-preview invocat
   try {
     const runtime = subject.adapter.create(WORKSPACE_ID);
     const args = subject.calls[0];
+    const imageIndex = args.indexOf(REVIEWED_IMAGE);
 
     assert.match(runtime.id, /^[0-9a-f-]{36}$/i);
+    assert.equal(runtime.runtime, 'static-preview');
     assert.equal(RUNTIME_IMAGE, REVIEWED_IMAGE);
-    assert.equal(args.at(-7), REVIEWED_IMAGE);
-    assert.deepEqual(args.slice(-6), ['httpd', '-f', '-p', '8080', '-h', '/workspace']);
+    assert.ok(imageIndex > 0);
+    assert.deepEqual(args.slice(imageIndex), [REVIEWED_IMAGE, 'httpd', '-f', '-p', '8080', '-h', '/workspace']);
     assert.equal(args.includes('--network'), true);
     assert.equal(args[args.indexOf('--network') + 1], 'none');
     assert.equal(args.includes('--read-only'), true);
@@ -54,7 +56,8 @@ test('creates only a fixed, resource-bounded and isolated static-preview invocat
     assert.deepEqual(args.slice(args.indexOf('--memory'), args.indexOf('--memory') + 2), ['--memory', '256m']);
     assert.deepEqual(args.slice(args.indexOf('--pids-limit'), args.indexOf('--pids-limit') + 2), ['--pids-limit', '64']);
     assert.equal(args[args.indexOf('--mount') + 1], `type=bind,src=${subject.workspacePath},dst=/workspace`);
-    assert.equal(args.slice(0, args.indexOf(RUNTIME_IMAGE)).some((argument) => argument === '-p' || argument === '--publish' || argument.startsWith('--publish=')), false);
+    assert.equal(args.slice(0, imageIndex).some((argument) => argument === '-p' || argument === '--publish' || argument.startsWith('--publish=')), false);
+    assert.equal(args.includes(`synapsenest.runtime.profile=static-preview`), true);
   } finally { subject.cleanup(); }
 });
 
@@ -187,4 +190,40 @@ test('creates and removes an isolated static preview container when Docker integ
       fs.rmSync(directory, { recursive: true, force: true });
     }
   }
+});
+
+test('creates pinned node and python runtimes with the same isolation posture', () => {
+  const subject = fixture();
+  try {
+    for (const profileId of ['node', 'python']) {
+      subject.calls.length = 0;
+      const runtime = subject.adapter.create(WORKSPACE_ID, { runtime: profileId });
+      const profile = RUNTIME_PROFILES[profileId];
+      const args = subject.calls[0];
+      const imageIndex = args.indexOf(profile.image);
+      assert.equal(runtime.runtime, profileId);
+      assert.ok(imageIndex > 0);
+      assert.deepEqual(args.slice(imageIndex), [profile.image, ...profile.command]);
+      assert.equal(args[args.indexOf('--network') + 1], 'none');
+      assert.equal(args.includes('--read-only'), true);
+      assert.deepEqual(args.slice(args.indexOf('--cap-drop'), args.indexOf('--cap-drop') + 2), ['--cap-drop', 'ALL']);
+      assert.deepEqual(args.slice(args.indexOf('--security-opt'), args.indexOf('--security-opt') + 2), ['--security-opt', 'no-new-privileges:true']);
+      assert.equal(args.slice(0, imageIndex).some((argument) => argument === '-p' || argument === '--publish' || argument.startsWith('--publish=')), false);
+      assert.equal(args.includes(`synapsenest.runtime.profile=${profileId}`), true);
+      for (const env of profile.env) {
+        assert.equal(args.includes(env), true);
+      }
+    }
+  } finally { subject.cleanup(); }
+});
+
+test('rejects unknown runtime profiles', () => {
+  const subject = fixture();
+  try {
+    assert.throws(
+      () => subject.adapter.create(WORKSPACE_ID, { runtime: 'ubuntu:latest' }),
+      (error) => error instanceof RuntimeAdapterError && /runtime must be one of/i.test(error.message)
+    );
+    assert.equal(subject.calls.length, 0);
+  } finally { subject.cleanup(); }
 });

@@ -1,0 +1,12 @@
+schema: synapsenest.recipe/v1
+id: portfolio
+title: Creative portfolio
+description: A visual portfolio grid for selected work and a short creator bio.
+runtime: static-preview
+previewPort: 8080
+install: none
+command: httpd
+genomeTemplate: portfolio
+tags:
+  - portfolio
+  - static

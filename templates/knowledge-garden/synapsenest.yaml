@@ -1,0 +1,12 @@
+schema: synapsenest.recipe/v1
+id: knowledge-garden
+title: Personal knowledge garden
+description: Linked notes and gentle navigation for a personal knowledge garden.
+runtime: static-preview
+previewPort: 8080
+install: none
+command: httpd
+genomeTemplate: blog
+tags:
+  - notes
+  - static

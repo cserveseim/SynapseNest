@@ -82,3 +82,14 @@ test('rejects unsafe snapshot names and unsupported archive formats', () => {
     assert.throws(() => subject.service.exportWorkspace(WORKSPACE_ID, 'shell'), GitServiceError);
   } finally { subject.cleanup(); }
 });
+
+test('creates a non-default template starter and omits synapsenest.yaml from the workspace', () => {
+  const subject = fixture();
+  try {
+    const result = subject.service.createStarter(WORKSPACE_ID, 'landing-page');
+    const workspacePath = path.join(subject.workspacesRoot, WORKSPACE_ID);
+    assert.equal(result.templateId, 'landing-page');
+    assert.match(fs.readFileSync(path.join(workspacePath, 'index.html'), 'utf8'), /Product landing/);
+    assert.equal(fs.existsSync(path.join(workspacePath, 'synapsenest.yaml')), false);
+  } finally { subject.cleanup(); }
+});

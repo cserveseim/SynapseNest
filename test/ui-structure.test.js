@@ -40,3 +40,16 @@ test('workspace IDE uses relative APIs, a sandboxed preview, and a single-pane m
   assert.match(workspaceCss, /@media\s*\(\s*max-width:\s*480px\s*\)/);
   assert.match(workspaceCss, /\.pane\.active/);
 });
+
+
+test('genome studio ships living synapse compare and recipe-backed template picker', () => {
+  const indexHtml = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
+  const appJs = fs.readFileSync(path.join(root, 'public', 'app.js'), 'utf8');
+  const styles = fs.readFileSync(path.join(root, 'public', 'styles.css'), 'utf8');
+  assert.match(indexHtml, /id="templateSelect"/);
+  assert.match(indexHtml, /Living side-by-side from real synapse records/);
+  assert.match(appJs, /\/api\/templates/);
+  assert.match(appJs, /Living compare/);
+  assert.match(appJs, /field-by-field from project genome/i);
+  assert.match(styles, /diff-table/);
+});

@@ -200,11 +200,27 @@ function nextTheme(theme) {
   return options[(options.indexOf(theme) + 1) % options.length];
 }
 function environmentFor(template) {
+  const key = String(template || 'blank').toLowerCase();
+  const recipes = {
+    blank: { runtime: 'static-preview', install: 'none', command: 'httpd' },
+    'static-site': { runtime: 'static-preview', install: 'none', command: 'httpd' },
+    landing: { runtime: 'static-preview', install: 'none', command: 'httpd' },
+    'landing-page': { runtime: 'static-preview', install: 'none', command: 'httpd' },
+    'product landing page': { runtime: 'static-preview', install: 'none', command: 'httpd' },
+    blog: { runtime: 'static-preview', install: 'none', command: 'httpd' },
+    'knowledge-garden': { runtime: 'static-preview', install: 'none', command: 'httpd' },
+    'personal knowledge garden': { runtime: 'static-preview', install: 'none', command: 'httpd' },
+    portfolio: { runtime: 'static-preview', install: 'none', command: 'httpd' },
+    'creative portfolio': { runtime: 'static-preview', install: 'none', command: 'httpd' },
+    dashboard: { runtime: 'static-preview', install: 'none', command: 'httpd' }
+  };
+  const matched = recipes[key] || { runtime: 'static-preview', install: 'none', command: 'httpd' };
   return {
-    runtime: 'Static browser preview',
+    runtime: matched.runtime,
     template,
-    install: 'No install required',
-    command: 'Safe deterministic preview only'
+    install: matched.install,
+    command: matched.command,
+    recipeSchema: 'synapsenest.recipe/v1'
   };
 }
 
